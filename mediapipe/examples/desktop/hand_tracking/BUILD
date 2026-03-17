@@ -67,3 +67,24 @@ cc_binary(
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
+
+cc_binary(
+    name = "libhand_tracker.so",
+    srcs = [
+        "hand_tracker.cc",
+        "hand_tracker.h",
+    ],
+    linkshared = True,
+    deps = [
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//mediapipe/framework/port:file_helpers",
+        "//mediapipe/framework/port:parse_text_proto",
+        "//mediapipe/framework/port:status",
+        "//mediapipe/gpu:gl_calculator_helper",
+        "//mediapipe/gpu:gpu_buffer",
+        "//mediapipe/gpu:gpu_shared_data_internal",
+        "//mediapipe/graphs/hand_tracking:mobile_calculators",
+    ],
+)
