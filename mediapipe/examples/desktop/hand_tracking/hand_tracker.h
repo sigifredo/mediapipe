@@ -9,33 +9,52 @@
 #include <string>
 #include <vector>
 
-struct HandLandmark {
+struct HandLandmark
+{
     float x, y, z;
     float visibility;
 };
 
-struct HandTrackingResult {
+struct HandTrackingResult
+{
     std::vector<std::vector<HandLandmark>> hands;
     int64_t timestamp_us;
 };
 
-using ResultCallback = std::function<void(const HandTrackingResult&)>;
+using ResultCallback = std::function<void(const HandTrackingResult &)>;
 
-class HandTracker {
+struct HandTrackerConfig
+{
+    std::string graph_path;
+    std::string input_stream = "input_video";
+    std::string landmark_stream = "hand_landmarks";
+    bool use_gpu = false;
+};
+
+class HandTracker
+{
 public:
     HandTracker();
     ~HandTracker();
 
-    bool Initialize(const std::string& graph_path,
-                    const std::string& model_dir,
-                    bool use_gpu = true);
+    HandTracker(const HandTracker &) = delete;
+    HandTracker &operator=(const HandTracker &) = delete;
 
-    bool ProcessFrame(const uint8_t* rgb_data,
-                      int width, int height,
-                      int64_t timestamp_us);
+    bool Initialize(const HandTrackerConfig &config);
+
+    bool ProcessFrame(const uint8_t *rgb_data, int width, int height, int64_t timestamp_us);
+
+    /// Bloquea hasta que el grafo termine de procesar todos los packets en cola.
+    bool WaitUntilIdle();
+
+    /// Cierra el input stream — necesario para liberar PreviousLoopbackCalculator
+    /// en modo single-image. Después de esto, no se pueden enviar más frames.
+    bool CloseInputStream();
 
     void SetResultCallback(ResultCallback callback);
     void Stop();
+
+    bool is_running() const;
 
 private:
     struct Impl;
@@ -43,4 +62,3 @@ private:
 };
 
 #endif
-
