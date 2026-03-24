@@ -3,6 +3,7 @@
 #include "hand_tracker.h"
 
 #include "mediapipe/framework/calculator_framework.h"
+#include "mediapipe/framework/formats/classification.pb.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/port/parse_text_proto.h"
@@ -12,7 +13,19 @@
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
 
 #include <fstream>
+#include <map>
+#include <mutex>
 #include <sstream>
+
+struct PartialResult
+{
+    std::vector<std::vector<HandLandmark>> hands;
+    std::vector<HandClassification> handedness;
+    bool has_landmarks = false;
+    bool has_handedness = false;
+
+    bool isComplete() const { return has_landmarks && has_handedness; }
+};
 
 struct HandTracker::Impl
 {
@@ -22,6 +35,33 @@ struct HandTracker::Impl
     HandTrackerConfig config;
     bool running = false;
     bool input_closed = false;
+
+    std::mutex pending_mutex;
+    std::map<int64_t, PartialResult> pending;
+
+    void tryEmit(int64_t timestamp_us)
+    {
+        auto it = pending.find(timestamp_us);
+
+        if (it == pending.end() || !it->second.isComplete())
+            return;
+
+        if (callback)
+        {
+            HandTrackingResult result;
+            result.timestamp_us = timestamp_us;
+            result.hands = std::move(it->second.hands);
+            result.handedness = std::move(it->second.handedness);
+            callback(result);
+        }
+
+        pending.erase(it);
+
+        // Purgar entradas huérfanas (un stream llegó pero el otro nunca).
+        // Si hay más de 8 pendientes, eliminar las más antiguas.
+        while (pending.size() > 8)
+            pending.erase(pending.begin());
+    }
 };
 
 HandTracker::HandTracker() : impl_(std::make_unique<Impl>()) {}
@@ -87,13 +127,11 @@ bool HandTracker::Initialize(const HandTrackerConfig &config)
         config.landmark_stream,
         [this](const mediapipe::Packet &packet) -> absl::Status
         {
-            if (!impl_->callback)
-                return absl::OkStatus();
-
             const auto &multi_hand = packet.Get<std::vector<mediapipe::NormalizedLandmarkList>>();
+            int64_t ts = packet.Timestamp().Microseconds();
 
-            HandTrackingResult result;
-            result.timestamp_us = packet.Timestamp().Microseconds();
+            std::vector<std::vector<HandLandmark>> hands;
+            hands.reserve(multi_hand.size());
 
             for (const auto &hand : multi_hand)
             {
@@ -108,16 +146,64 @@ bool HandTracker::Initialize(const HandTrackerConfig &config)
                                          lm.has_visibility() ? lm.visibility() : 0.0f});
                 }
 
-                result.hands.push_back(std::move(landmarks));
+                hands.push_back(std::move(landmarks));
             }
 
-            impl_->callback(result);
+            {
+                std::lock_guard<std::mutex> lock(impl_->pending_mutex);
+                auto &partial = impl_->pending[ts];
+                partial.hands = std::move(hands);
+                partial.has_landmarks = true;
+                impl_->tryEmit(ts);
+            }
+
             return absl::OkStatus();
         });
 
     if (!lm_status.ok())
     {
         fprintf(stderr, "ERROR ObserveOutputStream(%s): %s\n", config.landmark_stream.c_str(), lm_status.ToString().c_str());
+        return false;
+    }
+
+    // --- Observer: handedness ---
+    auto hd_status = impl_->graph.ObserveOutputStream(
+        config.handedness_stream,
+        [this](const mediapipe::Packet &packet) -> absl::Status
+        {
+            const auto &multi_handedness = packet.Get<std::vector<mediapipe::ClassificationList>>();
+            int64_t ts = packet.Timestamp().Microseconds();
+
+            std::vector<HandClassification> handedness;
+            handedness.reserve(multi_handedness.size());
+
+            for (const auto &cl_list : multi_handedness)
+            {
+                if (cl_list.classification_size() > 0)
+                {
+                    const auto &cl = cl_list.classification(0);
+                    handedness.push_back({cl.label(), cl.score()});
+                }
+                else
+                {
+                    handedness.push_back({"Unknown", 0.0f});
+                }
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(impl_->pending_mutex);
+                auto &partial = impl_->pending[ts];
+                partial.handedness = std::move(handedness);
+                partial.has_handedness = true;
+                impl_->tryEmit(ts);
+            }
+
+            return absl::OkStatus();
+        });
+
+    if (!hd_status.ok())
+    {
+        fprintf(stderr, "ERROR ObserveOutputStream(%s): %s\n", config.handedness_stream.c_str(), hd_status.ToString().c_str());
         return false;
     }
 

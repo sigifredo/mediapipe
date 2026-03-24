@@ -15,9 +15,16 @@ struct HandLandmark
     float visibility;
 };
 
+struct HandClassification
+{
+    std::string label; // "Left" | "Right"
+    float score;       // 0.0–1.0
+};
+
 struct HandTrackingResult
 {
     std::vector<std::vector<HandLandmark>> hands;
+    std::vector<HandClassification> handedness;
     int64_t timestamp_us;
 };
 
@@ -28,6 +35,7 @@ struct HandTrackerConfig
     std::string graph_path;
     std::string input_stream = "input_video";
     std::string landmark_stream = "hand_landmarks";
+    std::string handedness_stream = "handedness";
     bool use_gpu = false;
 };
 
