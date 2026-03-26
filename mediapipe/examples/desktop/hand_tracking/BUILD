@@ -71,10 +71,11 @@ cc_binary(
 cc_binary(
     name = "libhand_tracker.so",
     srcs = [
-        "hand_tracker.cc",
-        "hand_tracker.h",
+        "HandTracker.cpp",
+        "HandTracker.hpp",
         "MediaPipeTracker.cpp",
         "MediaPipeTracker.hpp",
+        "MediaPipeTrackerImpl.hpp",
     ],
     linkshared = True,
     deps = [

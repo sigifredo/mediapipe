@@ -3,7 +3,7 @@
 #ifndef MEDIAPIPE_TRACKER_IMPL_HPP
 #define MEDIAPIPE_TRACKER_IMPL_HPP
 
-#include "mediapipe_tracker.h"
+#include "MediaPipeTracker.hpp"
 
 #include "mediapipe/framework/calculator_framework.h"
 #include "mediapipe/gpu/gl_calculator_helper.h"
