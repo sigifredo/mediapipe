@@ -32,6 +32,7 @@ cc_binary(
     deps = [
         "//mediapipe/examples/desktop:simple_run_graph_main",
         "//mediapipe/graphs/hand_tracking:desktop_tflite_calculators",
+        "//mediapipe/graphs/pose_tracking:pose_tracking_cpu_deps",
     ],
 )
 
@@ -52,6 +53,7 @@ cc_binary(
     deps = [
         "//mediapipe/examples/desktop:demo_run_graph_main",
         "//mediapipe/graphs/hand_tracking:desktop_tflite_calculators",
+        "//mediapipe/graphs/pose_tracking:pose_tracking_cpu_deps",
     ],
 )
 
@@ -65,6 +67,7 @@ cc_binary(
     deps = [
         "//mediapipe/examples/desktop:demo_run_graph_main_gpu",
         "//mediapipe/graphs/hand_tracking:desktop_tflite_calculators",
+        "//mediapipe/graphs/pose_tracking:pose_tracking_cpu_deps",
     ],
 )
 
@@ -91,5 +94,6 @@ cc_binary(
         "//mediapipe/gpu:gpu_buffer",
         "//mediapipe/gpu:gpu_shared_data_internal",
         "//mediapipe/graphs/hand_tracking:desktop_tflite_calculators",
+        "//mediapipe/graphs/pose_tracking:pose_tracking_cpu_deps",
     ],
 )
