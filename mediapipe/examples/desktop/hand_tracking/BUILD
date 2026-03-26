@@ -73,6 +73,8 @@ cc_binary(
     srcs = [
         "hand_tracker.cc",
         "hand_tracker.h",
+        "MediaPipeTracker.cpp",
+        "MediaPipeTracker.hpp",
     ],
     linkshared = True,
     deps = [
