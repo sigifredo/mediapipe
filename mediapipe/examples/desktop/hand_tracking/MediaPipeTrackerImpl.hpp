@@ -1,7 +1,7 @@
 
 
-#ifndef MEDIAPIPE_TRACKER_IMPL_HPP
-#define MEDIAPIPE_TRACKER_IMPL_HPP
+#ifndef MEDIAPIPETRACKER_IMPL_HPP
+#define MEDIAPIPETRACKER_IMPL_HPP
 
 #include "MediaPipeTracker.hpp"
 
