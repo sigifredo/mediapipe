@@ -1,26 +1,13 @@
 
 
-#include "MediaPipeTracker.hpp"
+#include "mediapipe_tracker_impl.h"
 
-#include "mediapipe/framework/calculator_framework.h"
+#include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/port/parse_text_proto.h"
 #include "mediapipe/framework/port/status.h"
-#include "mediapipe/gpu/gl_calculator_helper.h"
-#include "mediapipe/gpu/gpu_buffer.h"
-#include "mediapipe/gpu/gpu_shared_data_internal.h"
-#include "mediapipe/framework/formats/image_frame.h"
 
 #include <fstream>
 #include <sstream>
-
-struct MediaPipeTracker::Impl
-{
-    mediapipe::CalculatorGraph graph;
-    mediapipe::GlCalculatorHelper gpuHelper;
-    MediaPipeTrackerConfig config;
-    bool running = false;
-    bool inputClosed = false;
-};
 
 MediaPipeTracker::~MediaPipeTracker() { stop(); }
 
@@ -45,7 +32,7 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
 {
     impl_->config = config;
 
-    // --- Leer grafo ---
+    // Leer grafo
     std::ifstream file(config.graphPath);
 
     if (!file.is_open())
@@ -59,7 +46,7 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
 
     mediapipe::CalculatorGraphConfig graphConfig = mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(ss.str());
 
-    // --- Inicializar grafo ---
+    // Inicializar grafo
     auto status = impl_->graph.Initialize(graphConfig);
 
     if (!status.ok())
@@ -68,7 +55,7 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
         return false;
     }
 
-    // --- GPU resources ---
+    // GPU resources
     if (config.useGPU)
     {
         auto gpuResources = mediapipe::GpuResources::Create();
@@ -89,11 +76,11 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
         impl_->gpuHelper.InitializeForTest(impl_->graph.GetGpuResources().get());
     }
 
-    // --- Observers de la subclase ---
+    // Observers de la subclase
     if (!registerObservers())
         return false;
 
-    // --- Arrancar ---
+    // Arrancar
     status = impl_->graph.StartRun({});
     if (!status.ok())
     {

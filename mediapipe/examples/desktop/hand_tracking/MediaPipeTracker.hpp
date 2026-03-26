@@ -1,7 +1,5 @@
-
-
-#ifndef MEDIAPIPE_TRACKER_H
-#define MEDIAPIPE_TRACKER_H
+#ifndef MEDIAPIPE_TRACKER_HPP
+#define MEDIAPIPE_TRACKER_HPP
 
 #include <cstdint>
 #include <memory>
