@@ -56,6 +56,7 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
     }
 
     // GPU resources
+#if !MEDIAPIPE_DISABLE_GPU
     if (config.useGPU)
     {
         auto gpuResources = mediapipe::GpuResources::Create();
@@ -75,6 +76,7 @@ bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
 
         impl_->gpuHelper.InitializeForTest(impl_->graph.GetGpuResources().get());
     }
+#endif
 
     // Observers de la subclase
     if (!registerObservers())

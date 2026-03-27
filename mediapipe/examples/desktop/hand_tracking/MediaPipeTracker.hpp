@@ -3,18 +3,20 @@
 #ifndef MEDIAPIPETRACKER_HPP
 #define MEDIAPIPETRACKER_HPP
 
+#include "TrackerExport.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <string>
 
-struct MediaPipeTrackerConfig
+struct TRACKER_API MediaPipeTrackerConfig
 {
     std::string graphPath;
     std::string inputStream = "input_video";
     bool useGPU = false;
 };
 
-class MediaPipeTracker
+class TRACKER_API MediaPipeTracker
 {
 public:
     virtual ~MediaPipeTracker();

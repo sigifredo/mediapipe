@@ -84,7 +84,7 @@ inline int fourcc(char c1, char c2, char c3, char c4) {
 #include <opencv2/video.hpp>
 #include <opencv2/videoio.hpp>
 
-#if CV_VERSION_MAJOR == 4 && !defined(MEDIAPIPE_MOBILE)
+#if CV_VERSION_MAJOR == 4 && !defined(MEDIAPIPE_MOBILE) && !defined(_WIN32)
 #include <opencv2/optflow.hpp>
 
 namespace cv {

@@ -81,7 +81,9 @@ cc_binary(
         "MediaPipeTracker.cpp",
         "MediaPipeTracker.hpp",
         "MediaPipeTrackerImpl.hpp",
+        "TrackerExport.hpp",
     ],
+    defines = ["TRACKER_BUILDING_DLL"],
     linkshared = True,
     deps = [
         "//mediapipe/framework:calculator_framework",

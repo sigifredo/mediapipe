@@ -9,26 +9,26 @@
 #include <string>
 #include <vector>
 
-struct HandLandmark
+struct TRACKER_API HandLandmark
 {
     float x, y, z;
     float visibility;
 };
 
-struct HandClassification
+struct TRACKER_API HandClassification
 {
     std::string label; // "Left" | "Right"
     float score;       // 0.0–1.0
 };
 
-struct HandTrackingResult
+struct TRACKER_API HandTrackingResult
 {
     std::vector<std::vector<HandLandmark>> hands;
     std::vector<HandClassification> handedness;
     int64_t timestampUs;
 };
 
-class HandTracker : public MediaPipeTracker
+class TRACKER_API HandTracker : public MediaPipeTracker
 {
 public:
     using ResultCallback = std::function<void(const HandTrackingResult &)>;

@@ -9,20 +9,20 @@
 #include <string>
 #include <vector>
 
-struct BodyLandmark
+struct TRACKER_API BodyLandmark
 {
     float x, y, z;
     float visibility;
     float presence;
 };
 
-struct BodyTrackingResult
+struct TRACKER_API BodyTrackingResult
 {
     std::vector<BodyLandmark> landmarks; // 33, coordenadas normalizadas
     int64_t timestampUs;
 };
 
-class BodyTracker : public MediaPipeTracker
+class TRACKER_API BodyTracker : public MediaPipeTracker
 {
 public:
     using ResultCallback = std::function<void(const BodyTrackingResult &)>;
