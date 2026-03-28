@@ -15,6 +15,11 @@ struct TRACKER_API HandLandmark
     float visibility;
 };
 
+struct TRACKER_API WorldLandmark
+{
+    float x, y, z; // metros, origen en centro geométrico de la mano
+};
+
 struct TRACKER_API HandClassification
 {
     std::string label; // "Left" | "Right"
@@ -24,6 +29,7 @@ struct TRACKER_API HandClassification
 struct TRACKER_API HandTrackingResult
 {
     std::vector<std::vector<HandLandmark>> hands;
+    std::vector<std::vector<WorldLandmark>> worldLandmarks; // vacío si no se pidió
     std::vector<HandClassification> handedness;
     int64_t timestampUs;
 };
@@ -36,7 +42,10 @@ public:
     HandTracker();
     ~HandTracker() override;
 
-    bool initialize(const MediaPipeTrackerConfig &config, const std::string &landmarkStream = "hand_landmarks", const std::string &handednessStream = "handedness");
+    bool initialize(const MediaPipeTrackerConfig &config,
+                    const std::string &landmarkStream = "hand_landmarks",
+                    const std::string &handednessStream = "handedness",
+                    const std::string &worldLandmarkStream = "");
     void setResultCallback(ResultCallback callback);
 
 protected:

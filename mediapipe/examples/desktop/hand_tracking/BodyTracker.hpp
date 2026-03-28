@@ -18,7 +18,8 @@ struct TRACKER_API BodyLandmark
 
 struct TRACKER_API BodyTrackingResult
 {
-    std::vector<BodyLandmark> landmarks; // 33, coordenadas normalizadas
+    std::vector<BodyLandmark> landmarks;      // 33, normalized image coordinates
+    std::vector<BodyLandmark> worldLandmarks; // 33, real-world meters (hip-centered)
     int64_t timestampUs;
 };
 
@@ -30,7 +31,7 @@ public:
     BodyTracker();
     ~BodyTracker() override;
 
-    bool initialize(const MediaPipeTrackerConfig &config, const std::string &landmarkStream = "pose_landmarks");
+    bool initialize(const MediaPipeTrackerConfig &config, const std::string &landmarkStream = "pose_landmarks", const std::string &worldLandmarkStream = "pose_world_landmarks");
     void setResultCallback(ResultCallback callback);
 
 protected:
