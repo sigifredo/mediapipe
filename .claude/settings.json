@@ -1,0 +1,8 @@
+{
+    "model": "opusplan",
+    "skipDangerousModePermissionPrompt": true,
+    "permissions": {
+        "allow": ["Edit(**)", "Bash(git *)", "Bash(npm *)", "Bash(npx *)", "Bash(ls *)", "Bash(cat *)", "Bash(mkdir *)", "Bash(cp *)", "Bash(mv *)", "Bash(rm *)", "Bash(python3 *)"],
+        "deny": ["Read(./.git/**)", "Edit(./.git/**)", "Read(./build/**)", "Edit(./build/**)", "Read(./.env)", "Read(./.env.*)", "Read(./node_modules/**)", "Read(./.vscode/**)"]
+    }
+}
