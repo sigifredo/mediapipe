@@ -87,7 +87,11 @@ bazel-bin/mediapipe/plexus/landmarks/landmarks_bench --device=gpu --video=<video
 
 Medición de referencia (GTX 1660 SUPER, detección de palma sobre `test_video.mp4`, sin manos): CPU 20,95 ms por frame, GPU 6,18 ms; primer frame en GPU 1336 ms por compilación de shaders. Sin medir con manos o cuerpo reales.
 
-Limitación de las pruebas: los frames son sintéticos y los resultados de landmarks son siempre 0. La salida real de landmarks por la ruta GPU no está verificada.
+Limitación de las pruebas automáticas: los frames son sintéticos y no producen landmarks. Los casos `cierre de entrada en gpu/cpu` comprueban que `closeInputStream()` tenga éxito (en GPU el stream de entrada del grafo es `<input>_frame`, no `input_video`).
+
+Verificación manual con una imagen real (una foto con personas enviada 6 veces, resolución 960 px de ancho): CPU y GPU entregan el mismo número de landmarks (2 manos con handedness `Right`; 33 de cuerpo más 33 de mundo) y coordenadas que difieren en milésimas (0,637 frente a 0,638 en la muñeca; 0,460 frente a 0,455 en la nariz). Una sola imagen; no se ha probado con cámara en vivo ni con movimiento. Las imágenes sin detección no emiten ningún callback en ninguno de los dos dispositivos.
+
+Aviso conocido en GPU: `Tensors are designed for single writes` (`tensor.cc`) sale una vez por proceso mientras el detector de palma o de pose corre en frames consecutivos (es decir, sin nada que seguir). Viene de `TensorsToDetectionsCalculator::ProcessGPU`, que reescribe en cada frame dos `Tensor` miembros, todo en el único hilo del contexto GL. Es diseño de upstream y no afecta a los resultados; no se parchea.
 
 ## Procedimiento de actualización
 
@@ -101,4 +105,4 @@ Limitación de las pruebas: los frames son sintéticos y los resultados de landm
 
 ## Estado de verificación
 
-Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. Pendiente: landmarks reales por GPU, Windows.
+Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. Pendiente: probar con cámara en vivo, Windows.

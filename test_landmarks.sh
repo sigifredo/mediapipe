@@ -40,6 +40,11 @@ run "env fuerza cpu sobre auto"    "device=cpu" env PLEXUS_LANDMARKS_DEVICE=cpu 
 run "env fuerza gpu sobre cpu"     "device=gpu" env PLEXUS_LANDMARKS_DEVICE=gpu "$S" hand "$HAND" cpu
 run "auto sin marcador usa cpu"    "device=cpu" "$S" hand "$GRAPHS/hand_cpu.pbtxt" auto
 
+# El stream de entrada del grafo gpu se renombra (<input>_frame): closeInputStream debe cerrar ese, no el original.
+run "cierre de entrada en gpu (mano)"   "close_ok=1" "$S" hand "$HAND" gpu
+run "cierre de entrada en gpu (cuerpo)" "close_ok=1" "$S" body "$BODY" gpu
+run "cierre de entrada en cpu (mano)"   "close_ok=1" "$S" hand "$HAND" cpu
+
 # Sin biblioteca gpu en el directorio: auto cae a cpu, gpu explícito falla.
 mkdir -p "$OUT/solo_cpu"
 cp dist/libplexus_landmarks.so dist/libplexus_landmarks_cpu.so "$OUT/solo_cpu/"
