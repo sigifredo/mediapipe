@@ -1,0 +1,24 @@
+# Seguimiento de manos sin renderizado, para HandTracker (backend cpu).
+# El stream de entrada es ImageFrame.
+# Uso: graphPath = ".../hand_tracking_{backend}.pbtxt"
+
+input_stream: "input_video"
+
+node {
+  calculator: "ConstantSidePacketCalculator"
+  output_side_packet: "PACKET:num_hands"
+  node_options: {
+    [type.googleapis.com/mediapipe.ConstantSidePacketCalculatorOptions]: {
+      packet { int_value: 2 }
+    }
+  }
+}
+
+node {
+  calculator: "HandLandmarkTrackingCpu"
+  input_stream: "IMAGE:input_video"
+  input_side_packet: "NUM_HANDS:num_hands"
+  output_stream: "LANDMARKS:hand_landmarks"
+  output_stream: "WORLD_LANDMARKS:hand_world_landmarks"
+  output_stream: "HANDEDNESS:handedness"
+}

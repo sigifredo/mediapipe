@@ -1,150 +1,149 @@
+#include "FacadeImpl.hpp"
 
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <vector>
 
-#include "MediaPipeTrackerImpl.hpp"
+TrackerBackend MediaPipeTracker::Impl::effectiveBackend(TrackerBackend requested)
+{
+    const char *env = std::getenv("PLEXUS_TRACKER_BACKEND");
 
-#include "mediapipe/framework/formats/image_frame.h"
-#include "mediapipe/framework/port/parse_text_proto.h"
-#include "mediapipe/framework/port/status.h"
+    if (!env || !*env)
+        return requested;
 
-#include <fstream>
-#include <sstream>
+    if (!std::strcmp(env, "cpu"))
+        return TrackerBackend::Cpu;
+
+    if (!std::strcmp(env, "gpu"))
+        return TrackerBackend::Gpu;
+
+    if (!std::strcmp(env, "auto"))
+        return TrackerBackend::Auto;
+
+    fprintf(stderr, "[hand_tracker] PLEXUS_TRACKER_BACKEND='%s' no es válido (auto, cpu, gpu): se ignora\n", env);
+
+    return requested;
+}
+
+bool MediaPipeTracker::Impl::fallbackToCpu()
+{
+    fprintf(stderr, "[hand_tracker] el backend gpu falló en ejecución: se reinicia en cpu\n");
+
+    active.reset();
+    allowFallback = false;
+
+    std::string error;
+    auto cpu = LoadedBackend::load("cpu", error);
+
+    if (!cpu)
+    {
+        fprintf(stderr, "[hand_tracker] no se pudo cargar cpu: %s\n", error.c_str());
+        return false;
+    }
+
+    MediaPipeTrackerConfig resolved = config;
+
+    resolved.graphPath = resolveGraphPath(config.graphPath, "cpu");
+
+    if (!initializer(cpu->backend(), resolved))
+        return false;
+
+    active = std::move(cpu);
+    return true;
+}
+
+std::string MediaPipeTracker::Impl::resolveGraphPath(const std::string &graphPath, const std::string &kind)
+{
+    static const std::string marker = "{backend}";
+    std::string resolved = graphPath;
+
+    for (auto pos = resolved.find(marker); pos != std::string::npos; pos = resolved.find(marker, pos + kind.size()))
+        resolved.replace(pos, marker.size(), kind);
+
+    return resolved;
+}
+
+bool MediaPipeTracker::Impl::start(const MediaPipeTrackerConfig &requested, Initializer init)
+{
+    config = requested;
+    initializer = std::move(init);
+    active.reset();
+    allowFallback = false;
+
+    const TrackerBackend mode = effectiveBackend(requested.backend);
+    const bool hasMarker = requested.graphPath.find("{backend}") != std::string::npos;
+    std::vector<std::string> candidates;
+
+    if (mode == TrackerBackend::Cpu)
+        candidates = {"cpu"};
+    else if (mode == TrackerBackend::Gpu)
+        candidates = {"gpu"};
+    else
+        candidates = hasMarker ? std::vector<std::string>{"gpu", "cpu"} : std::vector<std::string>{"cpu"};
+
+    for (const auto &kind : candidates)
+    {
+        std::string error;
+        auto loaded = LoadedBackend::load(kind, error);
+
+        if (!loaded)
+        {
+            fprintf(stderr, "[hand_tracker] backend %s no disponible: %s\n", kind.c_str(), error.c_str());
+            continue;
+        }
+
+        MediaPipeTrackerConfig resolved = requested;
+
+        resolved.graphPath = resolveGraphPath(requested.graphPath, kind);
+
+        if (!initializer(loaded->backend(), resolved))
+        {
+            fprintf(stderr, "[hand_tracker] backend %s no pudo iniciar el grafo\n", kind.c_str());
+            continue;
+        }
+
+        active = std::move(loaded);
+        allowFallback = mode == TrackerBackend::Auto && kind == "gpu";
+        fprintf(stderr, "[hand_tracker] backend activo: %s\n", kind.c_str());
+
+        return true;
+    }
+
+    return false;
+}
 
 MediaPipeTracker::~MediaPipeTracker() { stop(); }
 
-bool MediaPipeTracker::closeInputStream()
-{
-    if (!impl_->running || impl_->inputClosed)
-        return false;
+std::string MediaPipeTracker::backendName() const { return impl_->active ? impl_->active->kind() : std::string(); }
 
-    auto status = impl_->graph.CloseInputStream(impl_->config.inputStream);
+bool MediaPipeTracker::closeInputStream() { return impl_->active && impl_->active->backend().closeInputStream(); }
 
-    if (!status.ok())
-    {
-        fprintf(stderr, "ERROR CloseInputStream: %s\n", status.ToString().c_str());
-        return false;
-    }
-
-    impl_->inputClosed = true;
-    return true;
-}
-
-bool MediaPipeTracker::initialize(const MediaPipeTrackerConfig &config)
-{
-    impl_->config = config;
-
-    // Leer grafo
-    std::ifstream file(config.graphPath);
-
-    if (!file.is_open())
-    {
-        fprintf(stderr, "ERROR: no se puede abrir graph: %s\n", config.graphPath.c_str());
-        return false;
-    }
-
-    std::stringstream ss;
-    ss << file.rdbuf();
-
-    mediapipe::CalculatorGraphConfig graphConfig = mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(ss.str());
-
-    // Inicializar grafo
-    auto status = impl_->graph.Initialize(graphConfig);
-
-    if (!status.ok())
-    {
-        fprintf(stderr, "ERROR graph.Initialize: %s\n", status.ToString().c_str());
-        return false;
-    }
-
-    // GPU resources
-#if !MEDIAPIPE_DISABLE_GPU
-    if (config.useGPU)
-    {
-        auto gpuResources = mediapipe::GpuResources::Create();
-
-        if (!gpuResources.ok())
-        {
-            fprintf(stderr, "ERROR GpuResources::Create: %s\n", gpuResources.status().ToString().c_str());
-            return false;
-        }
-
-        status = impl_->graph.SetGpuResources(std::move(gpuResources).value());
-        if (!status.ok())
-        {
-            fprintf(stderr, "ERROR SetGpuResources: %s\n", status.ToString().c_str());
-            return false;
-        }
-
-        impl_->gpuHelper.InitializeForTest(impl_->graph.GetGpuResources().get());
-    }
-#endif
-
-    // Observers de la subclase
-    if (!registerObservers())
-        return false;
-
-    // Arrancar
-    status = impl_->graph.StartRun({});
-    if (!status.ok())
-    {
-        fprintf(stderr, "ERROR graph.StartRun: %s\n", status.ToString().c_str());
-        return false;
-    }
-
-    impl_->running = true;
-    impl_->inputClosed = false;
-
-    return true;
-}
-
-bool MediaPipeTracker::isRunning() const { return impl_->running; }
+bool MediaPipeTracker::isRunning() const { return impl_->active && impl_->active->backend().isRunning(); }
 
 bool MediaPipeTracker::processFrame(const uint8_t *rgbData, int width, int height, int64_t timestampUs)
 {
-    if (!impl_->running || impl_->inputClosed)
+    if (!impl_->active)
         return false;
 
-    auto inputFrame = absl::make_unique<mediapipe::ImageFrame>(mediapipe::ImageFormat::SRGB, width, height, mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
-
-    inputFrame->CopyPixelData(mediapipe::ImageFormat::SRGB, width, height, rgbData, mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
-
-    auto status = impl_->graph.AddPacketToInputStream(impl_->config.inputStream, mediapipe::Adopt(inputFrame.release()).At(mediapipe::Timestamp(timestampUs)));
-
-    if (!status.ok())
-    {
-        fprintf(stderr, "ERROR ProcessFrame: %s\n", status.ToString().c_str());
+    if (impl_->allowFallback && impl_->active->backend().hasFailed() && !impl_->fallbackToCpu())
         return false;
-    }
 
-    return true;
+    if (impl_->active->backend().processFrame(rgbData, width, height, timestampUs))
+        return true;
+
+    if (impl_->allowFallback && impl_->active->backend().hasFailed() && impl_->fallbackToCpu())
+        return impl_->active->backend().processFrame(rgbData, width, height, timestampUs);
+
+    return false;
 }
 
 void MediaPipeTracker::stop()
 {
-    if (!impl_->running)
-        return;
-
-    if (!impl_->inputClosed)
-        impl_->graph.CloseAllInputStreams().IgnoreError();
-
-    impl_->graph.WaitUntilDone().IgnoreError();
-    impl_->running = false;
-    impl_->inputClosed = true;
+    if (impl_ && impl_->active)
+        impl_->active->backend().stop();
 }
 
-bool MediaPipeTracker::waitUntilIdle()
-{
-    if (!impl_->running)
-        return false;
-
-    auto status = impl_->graph.WaitUntilIdle();
-
-    if (!status.ok())
-    {
-        fprintf(stderr, "ERROR WaitUntilIdle: %s\n", status.ToString().c_str());
-        return false;
-    }
-
-    return true;
-}
+bool MediaPipeTracker::waitUntilIdle() { return impl_->active && impl_->active->backend().waitUntilIdle(); }
 
 MediaPipeTracker::MediaPipeTracker() : impl_(std::make_unique<Impl>()) {}

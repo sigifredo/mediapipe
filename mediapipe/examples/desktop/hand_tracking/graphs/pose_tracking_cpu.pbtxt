@@ -1,0 +1,12 @@
+# Seguimiento de cuerpo sin renderizado, para BodyTracker (backend cpu).
+# El stream de entrada es ImageFrame.
+# Uso: graphPath = ".../pose_tracking_{backend}.pbtxt"
+
+input_stream: "input_video"
+
+node {
+  calculator: "PoseLandmarkCpu"
+  input_stream: "IMAGE:input_video"
+  output_stream: "LANDMARKS:pose_landmarks"
+  output_stream: "WORLD_LANDMARKS:pose_world_landmarks"
+}

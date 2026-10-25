@@ -1,21 +1,26 @@
-
-
 #ifndef MEDIAPIPETRACKER_HPP
 #define MEDIAPIPETRACKER_HPP
 
 #include "TrackerExport.hpp"
+#include "TrackerTypes.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-struct TRACKER_API MediaPipeTrackerConfig
-{
-    std::string graphPath;
-    std::string inputStream = "input_video";
-    bool useGPU = false;
-};
-
+/**
+ * @brief Base de HandTracker y BodyTracker.
+ *
+ * Esta clase vive en la fachada (libhand_tracker) y no depende de MediaPipe ni
+ * de EGL. La inferencia ocurre en un backend cargado en tiempo de ejecución:
+ * libhand_tracker_gpu si hay GPU utilizable y se solicita, y
+ * libhand_tracker_cpu en otro caso. Ambos deben estar junto a la fachada, o en
+ * el directorio de PLEXUS_TRACKER_LIBDIR.
+ *
+ * Con TrackerBackend::Auto, si el backend de GPU falla durante la ejecución, se
+ * reinicia el grafo en CPU y se continúa. No debe llamarse a processFrame desde
+ * el callback de resultados.
+ */
 class TRACKER_API MediaPipeTracker
 {
 public:
@@ -24,8 +29,9 @@ public:
     MediaPipeTracker(const MediaPipeTracker &) = delete;
     MediaPipeTracker &operator=(const MediaPipeTracker &) = delete;
 
+    /// Backend activo: "cpu", "gpu" o cadena vacía si no hay ninguno.
+    std::string backendName() const;
     bool closeInputStream();
-    bool initialize(const MediaPipeTrackerConfig &config);
     bool isRunning() const;
     bool processFrame(const uint8_t *rgbData, int width, int height, int64_t timestampUs);
     void stop();
@@ -36,11 +42,6 @@ protected:
     std::unique_ptr<Impl> impl_;
 
     MediaPipeTracker();
-
-    /// Llamado por initialize() después de graph.Initialize() y antes de
-    /// graph.StartRun(). La subclase registra aquí sus ObserveOutputStream.
-    /// Recibe referencia al Impl para acceder al graph.
-    virtual bool registerObservers() = 0;
 };
 
 #endif
