@@ -157,7 +157,7 @@ public:
         if (!running_ || inputClosed_)
             return false;
 
-        auto status = graph_.CloseInputStream(inputStream_);
+        auto status = graph_.CloseInputStream(feedStream_);
 
         if (!status.ok())
         {
