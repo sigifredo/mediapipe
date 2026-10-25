@@ -116,6 +116,10 @@ export class AudioClassifier extends AudioTaskRunner<AudioClassifierResult[]> {
     this.options.setBaseOptions(new BaseOptionsProto());
   }
 
+  protected override getTaskName(): string {
+    return 'AudioClassifier';
+  }
+
   protected override get baseOptions(): BaseOptionsProto {
     return this.options.getBaseOptions()!;
   }
@@ -171,6 +175,7 @@ export class AudioClassifier extends AudioTaskRunner<AudioClassifierResult[]> {
     sampleRate: number,
     timestampMs: number,
   ): AudioClassifierResult[] {
+    this.startProcessing(timestampMs);
     this.graphRunner.addDoubleToStream(
       sampleRate,
       SAMPLE_RATE_STREAM,
@@ -185,7 +190,7 @@ export class AudioClassifier extends AudioTaskRunner<AudioClassifierResult[]> {
     );
 
     this.classificationResults = [];
-    this.finishProcessing();
+    this.finishProcessing(timestampMs);
     return [...this.classificationResults];
   }
 

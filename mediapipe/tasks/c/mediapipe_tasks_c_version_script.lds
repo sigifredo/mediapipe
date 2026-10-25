@@ -1,22 +1,26 @@
 VERS_1.0 {
   global:
     MpAudioClassifier*;
+    MpAudioEmbedder*;
     MpErrorFree;
     MpFaceDetector*;
     MpFaceLandmarker*;
     MpFlatbuffer*;
     MpGestureRecognizer*;
     MpHandLandmarker*;
+    MpHolisticLandmarker*;
     MpImage*;
-    MpInteractiveSegmenter*;
+    MpInteractiveSegmenterLegacy*;
     MpLanguageDetector*;
-    MpLlmConverter*;
-    MpLlmBundler*;
     MpObjectDetector*;
     MpPoseLandmarker*;
+    MpRemoveLoggingCallback;
+    MpSemanticRetriever*;
+    MpSetLoggingCallback;
     MpStringList*;
     MpTextClassifier*;
     MpTextEmbedder*;
+    MpUniversalEmbedder*;
   local:
     *;
 };

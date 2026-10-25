@@ -24,6 +24,10 @@ extern "C" {
 #define PACKET_CREATOR_METHOD(METHOD_NAME) \
   Java_com_google_mediapipe_framework_PacketCreator_##METHOD_NAME
 
+JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateEmpty)(JNIEnv* env,
+                                                                 jobject thiz,
+                                                                 jlong context);
+
 JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateReferencePacket)(
     JNIEnv* env, jobject thiz, jlong context, jlong packet);
 
@@ -96,6 +100,10 @@ JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateTimeSeriesHeader)(
 JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateMatrix)(
     JNIEnv* env, jobject thiz, jlong context, jint rows, jint cols,
     jfloatArray data);
+
+JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateMatrixDirect)(
+    JNIEnv* env, jobject thiz, jlong context, jint rows, jint cols,
+    jobject data);
 
 JNIEXPORT jlong JNICALL PACKET_CREATOR_METHOD(nativeCreateCpuImage)(
     JNIEnv* env, jobject thiz, jlong context, jobject byte_buffer, jint width,

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//mediapipe/tasks/java/com/google/mediapipe/tasks:mediapipe_tasks_aar.bzl", "mediapipe_tasks_core_aar")
+load("//mediapipe/tasks/java/com/google/mediapipe/tasks:mediapipe_tasks_aar.bzl", "mediapipe_jni_binary", "mediapipe_tasks_core_aar")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -21,15 +21,84 @@ android_library(
     manifest = "AndroidManifest.xml",
     exports = [
         ":core_java",
+        ":jni_config_default",
         "//mediapipe/java/com/google/mediapipe/framework:android_framework",
+        "//mediapipe/tasks/java/com/google/mediapipe/tasks/core/jni:base_options_utils_jni",
         "//mediapipe/tasks/java/com/google/mediapipe/tasks/core/jni:model_resources_cache_jni",
     ],
     deps = ["@maven//:com_google_guava_guava"],
 )
 
+mediapipe_jni_binary(
+    name = "mediapipe_tasks_jni",
+    deps = [
+        "//mediapipe/calculators/core:flow_limiter_calculator",
+        "//mediapipe/calculators/tensor:inference_calculator_litert",
+        "//mediapipe/java/com/google/mediapipe/framework/jni:mediapipe_framework_jni",
+        "//mediapipe/tasks/cc/audio/audio_classifier:audio_classifier_graph",
+        "//mediapipe/tasks/cc/text/text_classifier:text_classifier_graph",
+        "//mediapipe/tasks/cc/text/text_embedder:text_embedder_graph",
+        "//mediapipe/tasks/cc/vision/face_detector:face_detector_graph",
+        "//mediapipe/tasks/cc/vision/face_landmarker:face_landmarker_graph",
+        "//mediapipe/tasks/cc/vision/gesture_recognizer:gesture_recognizer_graph",
+        "//mediapipe/tasks/cc/vision/holistic_landmarker:holistic_landmarker_graph",
+        "//mediapipe/tasks/cc/vision/image_classifier:image_classifier_graph",
+        "//mediapipe/tasks/cc/vision/image_embedder:image_embedder_graph",
+        "//mediapipe/tasks/cc/vision/image_segmenter:image_segmenter_graph",
+        "//mediapipe/tasks/cc/vision/interactive_segmenter_legacy:interactive_segmenter_legacy_graph",
+        "//mediapipe/tasks/cc/vision/object_detector:object_detector_graph",
+        "//mediapipe/tasks/cc/vision/pose_landmarker:pose_landmarker_graph",
+        "//mediapipe/tasks/java/com/google/mediapipe/tasks/core/jni:base_options_utils_jni",
+        "//mediapipe/tasks/java/com/google/mediapipe/tasks/core/jni:model_resources_cache_jni",
+    ] +
+    # Prebuilt accelerators are published in the LiteRT v2.0.0 repo under
+    # litert/prebuilt/<platform>/ (e.g. android_arm64/libLiteRtClGlAccelerator.so).
+    select({
+        "//conditions:default": [],
+    }),
+)
+
+android_library(
+    name = "jni_config_contract",
+    srcs = ["JniConfigContract.java"],
+    deps = ["@maven//:com_google_guava_guava"],
+)
+
+# 1. Compile-only stub of JniConfig, stripped from APK/AAR because neverlink = True.
+android_library(
+    name = "jni_config_stub",
+    srcs = ["JniConfig.java"],
+    neverlink = 1,
+    deps = [
+        ":jni_config_contract",
+        "@maven//:com_google_guava_guava",
+    ],
+)
+
+# 2. Real runtime default implementation of JniConfig for standard MediaPipe tasks.
+android_library(
+    name = "jni_config_default",
+    srcs = ["JniConfig.java"],
+    deps = [
+        ":jni_config_contract",
+        "@maven//:com_google_guava_guava",
+    ],
+)
+
+alias(
+    name = "jni_config",
+    actual = ":jni_config_default",
+)
+
 android_library(
     name = "core_java",
-    srcs = glob(["*.java"]),
+    srcs = glob(
+        ["*.java"],
+        exclude = [
+            "JniConfig.java",
+            "JniConfigContract.java",
+        ],
+    ),
     manifest = "AndroidManifest.xml",
     deps = [
         ":logging",
@@ -41,9 +110,10 @@ android_library(
         "//mediapipe/tasks/cc/core/proto:acceleration_java_proto_lite",
         "//mediapipe/tasks/cc/core/proto:base_options_java_proto_lite",
         "//mediapipe/tasks/cc/core/proto:external_file_java_proto_lite",
-        "//third_party:any_java_proto",
+        "//mediapipe/tasks/java/com/google/mediapipe/tasks/components/containers:audiodata",
         "//third_party:autovalue",
         "@com_google_protobuf//:protobuf_javalite",
+        "@maven//:androidx_annotation_annotation",
         "@maven//:com_google_guava_guava",
     ],
 )
@@ -104,4 +174,7 @@ mediapipe_tasks_core_aar(
         "//mediapipe/tasks/java/com/google/mediapipe/tasks/components/utils:java_src",
     ],
     manifest = "AndroidManifest.xml",
+    deps = [
+        ":libmediapipe_tasks_jni_lib",
+    ],
 )

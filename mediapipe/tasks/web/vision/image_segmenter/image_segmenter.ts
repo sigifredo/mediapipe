@@ -34,10 +34,10 @@ import {
 } from '../../../../web/graph_runner/graph_runner';
 // Placeholder for internal dependency on trusted resource url
 
-import {ImageSegmenterOptions} from './image_segmenter_options';
+import type {ImageSegmenterOptions} from './image_segmenter_options';
 import {ImageSegmenterResult} from './image_segmenter_result';
 
-export * from './image_segmenter_options';
+export type {ImageSegmenterOptions} from './image_segmenter_options';
 export * from './image_segmenter_result';
 export {type ImageSource}; // Used in the public API
 
@@ -147,6 +147,10 @@ export class ImageSegmenter extends VisionTaskRunner {
     this.segmenterOptions = new SegmenterOptionsProto();
     this.options.setSegmenterOptions(this.segmenterOptions);
     this.options.setBaseOptions(new BaseOptionsProto());
+  }
+
+  protected override getTaskName(): string {
+    return 'ImageSegmenter';
   }
 
   protected override get baseOptions(): BaseOptionsProto {

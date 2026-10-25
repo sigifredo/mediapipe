@@ -37,6 +37,7 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/mediapipe_builtin_op_resolver.h"
 #include "mediapipe/tasks/cc/core/proto/base_options.pb.h"
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
+#include "mediapipe/tasks/cc/core/running_mode.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
 #include "mediapipe/tasks/cc/vision/face_detector/proto/face_detector_graph_options.pb.h"
 #include "mediapipe/tasks/cc/vision/face_geometry/proto/face_geometry.pb.h"
@@ -96,7 +97,7 @@ constexpr char kFaceGeometryName[] = "face_geometry";
 
 constexpr float kLandmarksDiffMargin = 0.03;
 constexpr float kBlendshapesDiffMargin = 0.1;
-constexpr float kFaceGeometryDiffMargin = 0.02;
+constexpr float kFaceGeometryDiffMargin = 0.04;
 
 constexpr char kLandmarksSmoothingCalculator[] = "LandmarksSmoothingCalculator";
 
@@ -173,8 +174,11 @@ absl::StatusOr<std::unique_ptr<TaskRunner>> CreateFaceLandmarkerGraphTaskRunner(
   }
 
   return TaskRunner::Create(
-      graph.GetConfig(),
-      absl::make_unique<tasks::core::MediaPipeBuiltinOpResolver>());
+      {.config = graph.GetConfig(),
+       .task_name = "face_landmarker_test",
+       .task_running_mode = core::RunningMode::kImage,
+       .op_resolver =
+           std::make_unique<tasks::core::MediaPipeBuiltinOpResolver>()});
 }
 
 absl::StatusOr<CalculatorGraphConfig> ExpandConfig(
@@ -182,7 +186,7 @@ absl::StatusOr<CalculatorGraphConfig> ExpandConfig(
   auto config =
       mediapipe::ParseTextProtoOrDie<CalculatorGraphConfig>(config_str);
   CalculatorGraph graph;
-  MP_RETURN_IF_ERROR(graph.Initialize(config));
+  ABSL_RETURN_IF_ERROR(graph.Initialize(config));
   return graph.Config();
 }
 

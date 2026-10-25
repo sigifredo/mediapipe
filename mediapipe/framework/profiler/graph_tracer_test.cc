@@ -71,7 +71,7 @@ class GraphTracerTest : public ::testing::Test {
   void SetUpGraphTracer() {
     ProfilerConfig profiler_config;
     profiler_config.set_trace_enabled(true);
-    tracer_ = absl::make_unique<GraphTracer>(profiler_config);
+    tracer_ = std::make_unique<GraphTracer>(profiler_config);
   }
 
   // Initializes the input and output stream specs for a calculator node.

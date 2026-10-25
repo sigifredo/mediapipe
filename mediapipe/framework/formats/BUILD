@@ -171,6 +171,7 @@ cc_library(
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/gpu:gl_base_hdr",
         "//mediapipe/gpu:gl_context",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
     ],
@@ -212,6 +213,7 @@ cc_library(
     deps = [
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/port:statusor",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log:absl_check",
     ],
 )
@@ -245,6 +247,7 @@ cc_library(
         "@com_google_absl//absl/log:absl_log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ] + select({
         "//conditions:default": [
         ],
@@ -391,7 +394,9 @@ cc_library(
     name = "yuv_image",
     hdrs = ["yuv_image.h"],
     deps = [
-        "//mediapipe/framework/port:integral_types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/types:span",
         "@libyuv",
     ],
 )
@@ -568,7 +573,10 @@ config_setting(
         "MEDIAPIPE_NO_JNI": "1",
     },
     values = {"crosstool_top": "//external:android/crosstool"},
-    visibility = ["//mediapipe/framework:__pkg__"],
+    visibility = [
+        "//mediapipe/framework:__pkg__",
+        "//mediapipe/gpu:__pkg__",
+    ],
 )
 
 cc_library(
@@ -582,6 +590,7 @@ cc_library(
         }) + [
             "tensor.cc",
             "tensor_ahwb.cc",
+            "tensor_debugstring.cc",
         ],
     hdrs = [
         "tensor.h",
@@ -621,9 +630,11 @@ cc_library(
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
     ] + select({
         "//mediapipe/gpu/webgpu:use_webgpu": [
@@ -681,6 +692,7 @@ cc_test(
     ],
     deps = [
         ":tensor",
+        "//mediapipe/framework:memory_manager",
         "//mediapipe/framework:port",
         "//mediapipe/framework/port:gtest_main",
     ] + select({
@@ -748,6 +760,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "tensor_test_util",
+    testonly = True,
+    srcs = ["tensor_test_util.cc"],
+    hdrs = ["tensor_test_util.h"],
+    deps = [
+        ":tensor",
+        "//mediapipe/framework/port:gtest",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "tensor_opencv_test",
     srcs = ["tensor_opencv_test.cc"],
@@ -755,6 +779,7 @@ cc_test(
         ":tensor",
         ":tensor_opencv",
         "//mediapipe/framework/port:gtest_main",
+        "//mediapipe/framework/port:opencv_core",
         "@com_google_absl//absl/status",
     ],
 )
@@ -775,6 +800,17 @@ cc_test(
     deps = [
         ":yuv_image",
         "//mediapipe/framework/port:gtest_main",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/types:span",
         "@libyuv",
+    ],
+)
+
+cc_test(
+    name = "tensor_debugstring_test",
+    srcs = ["tensor_debugstring_test.cc"],
+    deps = [
+        ":tensor",
+        "//mediapipe/framework/port:gtest_main",
     ],
 )

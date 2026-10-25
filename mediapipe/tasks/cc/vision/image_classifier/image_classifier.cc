@@ -56,6 +56,7 @@ constexpr char kNormRectName[] = "norm_rect_in";
 constexpr char kNormRectTag[] = "NORM_RECT";
 constexpr char kSubgraphTypeName[] =
     "mediapipe.tasks.vision.image_classifier.ImageClassifierGraph";
+constexpr char kTaskName[] = "ImageClassifier";
 constexpr int kMicroSecondsPerMilliSecond = 1000;
 
 using ::mediapipe::NormalizedRect;
@@ -139,13 +140,18 @@ absl::StatusOr<std::unique_ptr<ImageClassifier>> ImageClassifier::Create(
   }
   return core::VisionTaskApiFactory::Create<ImageClassifier,
                                             proto::ImageClassifierGraphOptions>(
-      CreateGraphConfig(
-          std::move(options_proto),
-          options->running_mode == core::RunningMode::LIVE_STREAM),
-      std::move(options->base_options.op_resolver), options->running_mode,
-      std::move(packets_callback),
-      /*disable_default_service=*/
-      options->base_options.disable_default_service);
+      {.config = CreateGraphConfig(
+           std::move(options_proto),
+           options->running_mode == core::RunningMode::LIVE_STREAM),
+       .task_name = kTaskName,
+       .task_running_mode = core::GetCoreRunningMode(options->running_mode),
+       .op_resolver = std::move(options->base_options.op_resolver),
+       .packets_callback = std::move(packets_callback),
+       .disable_default_service = options->base_options.disable_default_service,
+       .host_environment = options->base_options.host_environment,
+       .host_system = options->base_options.host_system,
+       .host_version = options->base_options.host_version,
+       .ca_bundle_path = options->base_options.ca_bundle_path});
 }
 
 absl::StatusOr<ImageClassifierResult> ImageClassifier::Classify(
@@ -157,9 +163,10 @@ absl::StatusOr<ImageClassifierResult> ImageClassifier::Classify(
         "GPU input images are currently not supported.",
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(image_processing_options, image));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessImageData(
           {{kImageInStreamName, MakePacket<Image>(std::move(image))},
@@ -177,9 +184,10 @@ absl::StatusOr<ImageClassifierResult> ImageClassifier::ClassifyForVideo(
         "GPU input images are currently not supported.",
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(image_processing_options, image));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessVideoData(
           {{kImageInStreamName,
@@ -201,8 +209,9 @@ absl::Status ImageClassifier::ClassifyAsync(
         "GPU input images are currently not supported.",
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image));
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(image_processing_options, image));
   return SendLiveStreamData(
       {{kImageInStreamName,
         MakePacket<Image>(std::move(image))

@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <utility>
 
@@ -24,6 +25,7 @@
 #include "absl/log/absl_log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "mediapipe/framework/memory_manager.h"
 #include "mediapipe/framework/port.h"
@@ -190,7 +192,8 @@ Tensor::OpenGlTexture2dView Tensor::GetOpenGlTexture2dReadView() const {
         texture_height_ * texture_width_ * 4 * element_size();
     auto temp_buffer = std::make_unique<uint8_t[]>(padded_size);
     uint8_t* dest_buffer = temp_buffer.get();
-    uint8_t* src_buffer = reinterpret_cast<uint8_t*>(cpu_buffer_);
+    CpuBufferHandle<const void> cpu_buffer_handle = AcquireCpuBufferHandle();
+    const uint8_t* src_buffer = cpu_buffer_handle.buffer<const uint8_t>();
     const int num_elements = BhwcWidthFromShape(shape_) *
                              BhwcHeightFromShape(shape_) *
                              BhwcBatchFromShape(shape_);
@@ -365,10 +368,29 @@ Tensor::OpenGlBufferView Tensor::GetOpenGlBufferReadView() const {
           glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, bytes(),
                            GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT);
       ABSL_CHECK(ptr) << "glMapBufferRange failed: " << glGetError();
-      std::memcpy(ptr, cpu_buffer_, bytes());
+      CpuBufferHandle<const void> cpu_buffer_handle = AcquireCpuBufferHandle();
+      std::memcpy(ptr, cpu_buffer_handle.buffer<const void>(), bytes());
       glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+      if (prefer_ahwb_) {
+        // Next time Tensor is written, AHWB will be used.
+        MarkAhwbUsage();
+      }
     }
     valid_ |= kValidOpenGlBuffer;
+  } else {
+#ifdef MEDIAPIPE_TENSOR_USE_AHWB
+    // When the OpenGL buffer (`opengl_buffer_`) is backed by an external
+    // Android AHardwareBuffer (`ready_as_ahwb()` == true) mapped via
+    // glBufferStorageExternalEXT, compute shader writes on native mobile GPU
+    // drivers (e.g., Qualcomm Adreno) reside in GPU caches (GMEM/L2). We must
+    // create a native EGL fence (`EGL_SYNC_NATIVE_FENCE_ANDROID`) to ensure
+    // these writes are flushed to external system memory before subsequent CPU
+    // or GPU reads.
+    if (ready_as_ahwb()) {
+      CreateEglSyncAndFd();
+    }
+#endif  // MEDIAPIPE_TENSOR_USE_AHWB
   }
 
   return {/*is_write_view=*/false, opengl_buffer_, std::move(lock),
@@ -379,7 +401,7 @@ Tensor::OpenGlBufferView Tensor::GetOpenGlBufferReadView() const {
           //
           // Not passing for the case when AHWB is not in use to avoid creation
           // of unnecessary sync object and memory leak.
-          use_ahwb_ ? &ssbo_read_ : nullptr,
+          ready_as_ahwb() ? &ssbo_read_ : nullptr,
 #else
           nullptr,
 #endif  // MEDIAPIPE_TENSOR_USE_AHWB
@@ -418,12 +440,12 @@ void Tensor::AllocateOpenGlBuffer() const {
       gl_context_ = mediapipe::GlContext::GetCurrent();
     }
     ABSL_LOG_IF(FATAL, !gl_context_) << "GlContext is not bound to the thread.";
-    glGenBuffers(1, &opengl_buffer_);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, opengl_buffer_);
     if (!use_ahwb_ || !AllocateAhwbMapToSsbo()) {
+      glGenBuffers(1, &opengl_buffer_);
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, opengl_buffer_);
       glBufferData(GL_SHADER_STORAGE_BUFFER, bytes(), NULL, GL_STREAM_COPY);
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
   }
 }
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_31
@@ -482,6 +504,7 @@ Tensor::Tensor(ElementType element_type, const Shape& shape,
 #ifdef MEDIAPIPE_TENSOR_USE_AHWB
   if (memory_manager) {
     hardware_buffer_pool_ = memory_manager->GetAndroidHardwareBufferPool();
+    prefer_ahwb_ = memory_manager->PreferAhwb();
   }
 #endif  // MEDIAPIPE_TENSOR_USE_AHWB
 }
@@ -496,6 +519,7 @@ Tensor::Tensor(ElementType element_type, const Shape& shape,
 #ifdef MEDIAPIPE_TENSOR_USE_AHWB
   if (memory_manager) {
     hardware_buffer_pool_ = memory_manager->GetAndroidHardwareBufferPool();
+    prefer_ahwb_ = memory_manager->PreferAhwb();
   }
 #endif  // MEDIAPIPE_TENSOR_USE_AHWB
 }
@@ -551,8 +575,8 @@ absl::Status Tensor::Invalidate() {
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_31
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_30
   {
-    absl::MutexLock lock(&view_mutex_);
-    MP_RETURN_IF_ERROR(ReleaseAhwbStuff());
+    absl::MutexLock lock(view_mutex_);
+    ABSL_RETURN_IF_ERROR(ReleaseAhwbStuff());
 
     // Don't need to wait for the resource to be deleted because if will be
     // released on last reference deletion inside the OpenGL driver.
@@ -619,6 +643,11 @@ absl::Status Tensor::ReadBackGpuToCpu() const {
       std::memcpy(cpu_buffer_, ptr, bytes());
       glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
     });
+
+    if (prefer_ahwb_) {
+      // Next time Tensor is written, AHWB will be used.
+      MarkAhwbUsage();
+    }
     return absl::OkStatus();
   }
 #endif  // MEDIAPIPE_OPENGL_ES_VERSION >= MEDIAPIPE_OPENGL_ES_31
@@ -660,7 +689,7 @@ absl::Status Tensor::ReadBackGpuToCpu() const {
     const int height = BhwcHeightFromShape(shape_);
     const int depth = BhwcDepthFromShape(shape_);
     // CPU data layout may not match texture data layout.
-    MP_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         const int padded_depth,
         WebGpuTextureFormatDepth(webgpu_texture2d_.GetFormat()));
 
@@ -701,8 +730,7 @@ absl::Status Tensor::ReadBackGpuToCpu() const {
       "Failed to read back data from GPU to CPU. Valid formats: ", valid_));
 }
 
-Tensor::CpuReadView Tensor::GetCpuReadView() const {
-  auto lock = std::make_unique<absl::MutexLock>(&view_mutex_);
+Tensor::CpuBufferHandle<const void> Tensor::AcquireCpuBufferHandle() const {
   ABSL_LOG_IF(FATAL, valid_ == kValidNone)
       << "Tensor must be written prior to read from.";
 #ifdef MEDIAPIPE_TENSOR_USE_AHWB
@@ -710,9 +738,9 @@ Tensor::CpuReadView Tensor::GetCpuReadView() const {
     void* ptr = MapAhwbToCpuRead();
     if (ptr) {
       valid_ |= kValidCpu;
-      return {ptr, std::move(lock), [ahwb = ahwb_.get()] {
-                ABSL_CHECK_OK(ahwb->Unlock()) << "Unlock failed.";
-              }};
+      return CpuBufferHandle<const void>(ptr, [ahwb = ahwb_.get()] {
+        ABSL_CHECK_OK(ahwb->Unlock()) << "Unlock failed.";
+      });
     }
   }
 #endif  // MEDIAPIPE_TENSOR_USE_AHWB
@@ -722,7 +750,13 @@ Tensor::CpuReadView Tensor::GetCpuReadView() const {
     ABSL_CHECK_OK(ReadBackGpuToCpu()) << "ReadBackGpuToCpu failed.";
     valid_ |= kValidCpu;
   }
-  return {cpu_buffer_, std::move(lock)};
+  return CpuBufferHandle<const void>(cpu_buffer_, nullptr);
+}
+
+Tensor::CpuReadView Tensor::GetCpuReadView() const {
+  auto lock = std::make_unique<absl::MutexLock>(&view_mutex_);
+  view_mutex_.AssertHeld();
+  return AcquireCpuBufferHandle().ToCpuView(std::move(lock));
 }
 
 Tensor::CpuWriteView Tensor::GetCpuWriteView(
@@ -796,6 +830,31 @@ void Tensor::FreeCpuBuffer() const {
   }
 #endif  // MEDIAPIPE_METAL_ENABLED
   cpu_buffer_ = nullptr;
+}
+
+absl::string_view Tensor::ElementTypeName(Tensor::ElementType element_type) {
+  switch (element_type) {
+    case Tensor::ElementType::kNone:
+      return "None";
+    case Tensor::ElementType::kFloat16:
+      return "Float16";
+    case Tensor::ElementType::kFloat32:
+      return "Float32";
+    case Tensor::ElementType::kUInt8:
+      return "UInt8";
+    case Tensor::ElementType::kInt8:
+      return "Int8";
+    case Tensor::ElementType::kInt32:
+      return "Int32";
+    case Tensor::ElementType::kInt64:
+      return "Int64";
+    case Tensor::ElementType::kChar:
+      return "Char";
+    case Tensor::ElementType::kBool:
+      return "Bool";
+    default:
+      return "Unknown";
+  }
 }
 
 }  // namespace mediapipe

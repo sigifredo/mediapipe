@@ -263,11 +263,13 @@ Stream<ClassificationList> ConvertTensorToBlendshapes(
 // }
 class FaceBlendshapesGraph : public core::ModelTaskGraph {
  public:
-  absl::StatusOr<CalculatorGraphConfig> GetConfig(SubgraphContext* sc) {
-    MP_ASSIGN_OR_RETURN(const auto* model_resources,
-                        CreateModelResources<FaceBlendshapesGraphOptions>(sc));
+  absl::StatusOr<CalculatorGraphConfig> GetConfig(
+      SubgraphContext* sc) override {
+    ABSL_ASSIGN_OR_RETURN(
+        const auto* model_resources,
+        CreateModelResources<FaceBlendshapesGraphOptions>(sc));
     Graph graph;
-    MP_ASSIGN_OR_RETURN(
+    ABSL_ASSIGN_OR_RETURN(
         auto face_blendshapes_outs,
         BuildFaceBlendshapesSubgraph(
             sc->Options<FaceBlendshapesGraphOptions>(), *model_resources,

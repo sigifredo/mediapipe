@@ -20,6 +20,7 @@ package(default_visibility = [
     "//visibility:public",
 ])
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "simple_run_graph_main",
     srcs = ["simple_run_graph_main.cc"],
@@ -38,6 +39,7 @@ cc_library(
     ],
 )
 
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "demo_run_graph_main",
     srcs = ["demo_run_graph_main.cc"],
@@ -62,6 +64,7 @@ cc_library(
 # Must have a GPU with EGL support:
 # ex: sudo apt-get install mesa-common-dev libegl1-mesa-dev libgles2-mesa-dev
 # (or similar nvidia/amd equivalent)
+# buildifier: disable=no-hdrs-no-alwayslink
 cc_library(
     name = "demo_run_graph_main_gpu",
     srcs = ["demo_run_graph_main_gpu.cc"],

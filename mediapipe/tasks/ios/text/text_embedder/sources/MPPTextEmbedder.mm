@@ -14,6 +14,7 @@
 
 #import "mediapipe/tasks/ios/text/text_embedder/sources/MPPTextEmbedder.h"
 
+#import "mediapipe/tasks/ios/common/sources/MPPCommon.h"
 #import "mediapipe/tasks/ios/common/utils/sources/MPPCommonUtils.h"
 #import "mediapipe/tasks/ios/common/utils/sources/NSString+Helpers.h"
 #import "mediapipe/tasks/ios/components/utils/sources/MPPCosineSimilarity.h"
@@ -33,6 +34,22 @@ static NSString *const kEmbeddingsTag = @"EMBEDDINGS";
 static NSString *const kTextInStreamName = @"text_in";
 static NSString *const kTextTag = @"TEXT";
 static NSString *const kTaskGraphName = @"mediapipe.tasks.text.text_embedder.TextEmbedderGraph";
+static NSString *const kTaskName = @"textEmbedder";
+
+static NSString *const kQueryTemplate = @"task: %@ | query: %@";
+static NSString *const kDocumentTemplate = @"title: %@ | text: %@";
+
+@implementation MPPTextFormatContext
+
+- (instancetype)init {
+  self = [super init];
+  if (self) {
+    _textRole = MPPTextRoleQuery;
+  }
+  return self;
+}
+
+@end
 
 @interface MPPTextEmbedder () {
   /** iOS Text Task Runner */
@@ -46,13 +63,15 @@ static NSString *const kTaskGraphName = @"mediapipe.tasks.text.text_embedder.Tex
   self = [super init];
   if (self) {
     MPPTaskInfo *taskInfo = [[MPPTaskInfo alloc]
-        initWithTaskGraphName:kTaskGraphName
-                 inputStreams:@[ [NSString stringWithFormat:@"%@:%@", kTextTag, kTextInStreamName] ]
-                outputStreams:@[ [NSString stringWithFormat:@"%@:%@", kEmbeddingsTag,
-                                                            kEmbeddingsOutStreamName] ]
-                  taskOptions:options
-           enableFlowLimiting:NO
-                        error:error];
+          initWithTaskName:kTaskName
+             taskGraphName:kTaskGraphName
+              inputStreams:@[ [NSString stringWithFormat:@"%@:%@", kTextTag, kTextInStreamName] ]
+             outputStreams:@[ [NSString stringWithFormat:@"%@:%@", kEmbeddingsTag,
+                                                         kEmbeddingsOutStreamName] ]
+               taskOptions:options
+        enableFlowLimiting:NO
+               runningMode:MPPCoreRunningModeUnspecified
+                     error:error];
 
     if (!taskInfo) {
       return nil;
@@ -76,7 +95,66 @@ static NSString *const kTaskGraphName = @"mediapipe.tasks.text.text_embedder.Tex
 }
 
 - (nullable MPPTextEmbedderResult *)embedText:(NSString *)text error:(NSError **)error {
-  Packet packet = [MPPTextPacketCreator createWithText:text];
+  return [self embedText:text textFormatContext:nil error:error];
+}
+
+- (NSString *)taskStringWithEmbeddingType:(MPPEmbeddingType)embeddingType {
+  switch (embeddingType) {
+    case MPPEmbeddingTypeRetrievalQuery:
+      return @"search result";
+    case MPPEmbeddingTypeSemanticSimilarity:
+      return @"sentence similarity";
+    case MPPEmbeddingTypeClassification:
+      return @"classification";
+    case MPPEmbeddingTypeClustering:
+      return @"clustering";
+    case MPPEmbeddingTypeQuestionAnswering:
+      return @"question answering";
+    case MPPEmbeddingTypeFactChecking:
+      return @"fact checking";
+    case MPPEmbeddingTypeCodeRetrieval:
+      return @"code retrieval";
+    default:
+      return @"search result";
+  }
+}
+
+- (NSString *)formatText:(NSString *)text
+       textFormatContext:(MPPTextFormatContext *)textFormatContext {
+  MPPEmbeddingType embeddingType = textFormatContext.embeddingType;
+  BOOL isQuery = textFormatContext.textRole != MPPTextRoleDocument;
+  NSString *title = textFormatContext.title != nil && textFormatContext.title.length > 0
+                        ? textFormatContext.title
+                        : @"none";
+
+  switch (embeddingType) {
+    case MPPEmbeddingTypeRetrievalDocument:
+      return [NSString stringWithFormat:kDocumentTemplate, title, text];
+    case MPPEmbeddingTypeRetrievalQuery:
+      return [NSString
+          stringWithFormat:kQueryTemplate, [self taskStringWithEmbeddingType:embeddingType], text];
+    case MPPEmbeddingTypeQuestionAnswering:
+    case MPPEmbeddingTypeFactChecking:
+    case MPPEmbeddingTypeCodeRetrieval:
+      return isQuery ? [NSString stringWithFormat:kQueryTemplate,
+                                                  [self taskStringWithEmbeddingType:embeddingType],
+                                                  text]
+                     : [NSString stringWithFormat:kDocumentTemplate, title, text];
+    default:
+      return [NSString
+          stringWithFormat:kQueryTemplate, [self taskStringWithEmbeddingType:embeddingType], text];
+  }
+}
+
+- (nullable MPPTextEmbedderResult *)embedText:(NSString *)text
+                            textFormatContext:(nullable MPPTextFormatContext *)textFormatContext
+                                        error:(NSError **)error {
+  NSString *inputText = text;
+  if (textFormatContext != nil) {
+    inputText = [self formatText:text textFormatContext:textFormatContext];
+  }
+
+  Packet packet = [MPPTextPacketCreator createWithText:inputText];
 
   std::map<std::string, Packet> packetMap = {{kTextInStreamName.cppString, packet}};
 
@@ -97,6 +175,29 @@ static NSString *const kTaskGraphName = @"mediapipe.tasks.text.text_embedder.Tex
   return [MPPCosineSimilarity computeBetweenEmbedding1:embedding1
                                          andEmbedding2:embedding2
                                                  error:error];
+}
+
+- (nullable MPPEmbeddingResult *)embedContent:(NSArray<id> *)content error:(NSError **)error {
+  for (id part in content) {
+    if ([part isKindOfClass:[NSString class]]) {
+      MPPTextEmbedderResult *result = [self embedText:(NSString *)part error:error];
+      if (result == nil) {
+        return nil;
+      }
+      return result.embeddingResult;
+    } else if ([part isKindOfClass:[MPPTextPart class]]) {
+      MPPTextEmbedderResult *result = [self embedText:((MPPTextPart *)part).text error:error];
+      if (result == nil) {
+        return nil;
+      }
+      return result.embeddingResult;
+    }
+  }
+  [MPPCommonUtils
+      createCustomError:error
+               withCode:MPPTasksErrorCodeInvalidArgumentError
+            description:@"Content is empty or does not contain any supported text elements."];
+  return nil;
 }
 
 @end

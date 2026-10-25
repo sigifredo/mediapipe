@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <limits>
 #include <memory>
@@ -36,6 +37,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "mediapipe/framework/calculator.pb.h"
 #include "mediapipe/framework/deps/file_path.h"
 #include "mediapipe/framework/formats/image_format.pb.h"
@@ -168,16 +171,16 @@ std::string GetBinaryDirectory() {
 absl::Status CompareAndSaveOutputInternal(
     const ImageFrame& expected, const ImageFrame& actual,
     const ImageFrameComparisonOptions& options) {
-  MP_ASSIGN_OR_RETURN(auto output_img_path,
-                      SavePngTestOutput(actual, "output"));
-  MP_ASSIGN_OR_RETURN(auto expected_img_path,
-                      SavePngTestOutput(expected, "expected"));
+  ABSL_ASSIGN_OR_RETURN(auto output_img_path,
+                        SavePngTestOutput(actual, "output"));
+  ABSL_ASSIGN_OR_RETURN(auto expected_img_path,
+                        SavePngTestOutput(expected, "expected"));
 
   std::unique_ptr<ImageFrame> diff_img;
   auto status = CompareImageFrames(expected, actual, options, diff_img);
   if (diff_img) {
-    MP_ASSIGN_OR_RETURN(auto diff_img_path,
-                        SavePngTestOutput(*diff_img, "diff"));
+    ABSL_ASSIGN_OR_RETURN(auto diff_img_path,
+                          SavePngTestOutput(*diff_img, "diff"));
   }
 
   return status;
@@ -338,14 +341,14 @@ absl::StatusOr<std::unique_ptr<ImageFrame>> DecodeTestImage(
         << "unsupported number of channels: " << output_channels;
   }
 
-  return absl::make_unique<ImageFrame>(
+  return std::make_unique<ImageFrame>(
       format, width, height, width * output_channels, data, stbi_image_free);
 }
 
 absl::StatusOr<std::unique_ptr<ImageFrame>> LoadTestImage(
     absl::string_view path, ImageFormat::Format format) {
   std::string encoded;
-  MP_RETURN_IF_ERROR(mediapipe::file::GetContents(path, &encoded));
+  ABSL_RETURN_IF_ERROR(mediapipe::file::GetContents(path, &encoded));
   return DecodeTestImage(encoded, format);
 }
 
@@ -354,11 +357,8 @@ std::unique_ptr<ImageFrame> LoadTestPng(absl::string_view path,
   return nullptr;
 }
 
-// Write an ImageFrame as PNG to the test undeclared outputs directory.
-// The image's name will contain the given prefix and a timestamp.
-// Returns the path to the output if successful.
-absl::StatusOr<std::string> SavePngTestOutput(
-    const mediapipe::ImageFrame& image, absl::string_view prefix) {
+absl::Status SavePngOutput(const mediapipe::ImageFrame& image,
+                           absl::string_view path) {
   absl::flat_hash_set<ImageFormat::Format> supported_formats = {
       ImageFormat::GRAY8, ImageFormat::SRGB, ImageFormat::SRGBA,
       ImageFormat::LAB8, ImageFormat::SBGRA};
@@ -366,15 +366,24 @@ absl::StatusOr<std::string> SavePngTestOutput(
     return absl::CancelledError(
         absl::StrFormat("Format %d can not be saved to PNG.", image.Format()));
   }
+  RET_CHECK(stbi_write_png(path.data(), image.Width(), image.Height(),
+                           image.NumberOfChannels(), image.PixelData(),
+                           image.WidthStep()))
+      << " path: " << path;
+  return absl::OkStatus();
+}
+
+// Write an ImageFrame as PNG to the test undeclared outputs directory.
+// The image's name will contain the given prefix and a timestamp.
+// Returns the path to the output if successful.
+absl::StatusOr<std::string> SavePngTestOutput(
+    const mediapipe::ImageFrame& image, absl::string_view prefix) {
   std::string now_string = absl::FormatTime(absl::Now());
   std::string output_relative_path =
       absl::StrCat(prefix, "_", now_string, ".png");
   std::string output_full_path =
       file::JoinPath(GetTestOutputsDir(), output_relative_path);
-  RET_CHECK(stbi_write_png(output_full_path.c_str(), image.Width(),
-                           image.Height(), image.NumberOfChannels(),
-                           image.PixelData(), image.WidthStep()))
-      << " path: " << output_full_path;
+  ABSL_RETURN_IF_ERROR(SavePngOutput(image, output_full_path));
   return output_relative_path;
 }
 
@@ -404,8 +413,8 @@ std::unique_ptr<ImageFrame> GenerateLuminanceImage(
     return nullptr;
   }
   auto luminance_image =
-      absl::make_unique<ImageFrame>(original_image.Format(), width, height,
-                                    ImageFrame::kGlDefaultAlignmentBoundary);
+      std::make_unique<ImageFrame>(original_image.Format(), width, height,
+                                   ImageFrame::kGlDefaultAlignmentBoundary);
   const uint8_t* pixel1 = original_image.PixelData();
   uint8_t* pixel2 = luminance_image->MutablePixelData();
   const int width_padding1 = original_image.WidthStep() - width * channels;

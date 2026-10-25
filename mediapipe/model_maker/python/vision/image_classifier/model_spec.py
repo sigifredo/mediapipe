@@ -56,7 +56,7 @@ class ModelSpec(object):
 
 mobilenet_v2_keras_spec = functools.partial(
     ModelSpec,
-    uri=None,
+    uri=None,  # pyrefly: ignore[bad-argument-type]
     name='mobilenet_v2_keras',
     mean_rgb=[127.5],
     stddev_rgb=[128.0],
@@ -106,4 +106,4 @@ class SupportedModels(enum.Enum):
     if spec not in cls:
       raise TypeError('Unsupported image classifier spec: {}'.format(spec))
 
-    return spec.value()
+    return spec.value()  # pyrefly: ignore[not-callable]

@@ -256,13 +256,13 @@ class ObjectDetectorModel(tf.keras.Model):
 
   # The remaining method overrides are used to train this object detector model
   # using model.fit().
-  def call(  # pytype: disable=annotation-type-mismatch
+  def call(  # pyrefly: ignore[bad-override]
       self,
       images: Union[tf.Tensor, Sequence[tf.Tensor]],
       image_shape: Optional[tf.Tensor] = None,
       anchor_boxes: Optional[Mapping[str, tf.Tensor]] = None,
       output_intermediate_features: bool = False,
-      training: bool = None,
+      training: bool = None,  # pyrefly: ignore[bad-function-definition]
   ) -> Mapping[str, tf.Tensor]:
     """Overrides call from tf.keras.Model."""
     return self._model(
@@ -285,23 +285,23 @@ class ObjectDetectorModel(tf.keras.Model):
     outputs = y_pred
     # Sums all positives in a batch for normalization and avoids zero
     # num_positives_sum, which would lead to inf loss during training
-    cls_sample_weight = labels['cls_weights']
-    box_sample_weight = labels['box_weights']
+    cls_sample_weight = labels['cls_weights']  # pyrefly: ignore[unsupported-operation]
+    box_sample_weight = labels['box_weights']  # pyrefly: ignore[unsupported-operation]
     num_positives = tf.reduce_sum(box_sample_weight) + 1.0
     cls_sample_weight = cls_sample_weight / num_positives
     box_sample_weight = box_sample_weight / num_positives
     y_true_cls = loss_utils.multi_level_flatten(
-        labels['cls_targets'], last_dim=None
+        labels['cls_targets'], last_dim=None  # pyrefly: ignore[unsupported-operation]
     )
     y_true_cls = tf.one_hot(y_true_cls, self._num_classes)
     y_pred_cls = loss_utils.multi_level_flatten(
-        outputs['cls_outputs'], last_dim=self._num_classes
+        outputs['cls_outputs'], last_dim=self._num_classes  # pyrefly: ignore[unsupported-operation]
     )
     y_true_box = loss_utils.multi_level_flatten(
-        labels['box_targets'], last_dim=4
+        labels['box_targets'], last_dim=4  # pyrefly: ignore[unsupported-operation]
     )
     y_pred_box = loss_utils.multi_level_flatten(
-        outputs['box_outputs'], last_dim=4
+        outputs['box_outputs'], last_dim=4  # pyrefly: ignore[unsupported-operation]
     )
 
     cls_loss = cls_loss_fn(
@@ -328,7 +328,7 @@ class ObjectDetectorModel(tf.keras.Model):
     return total_loss
 
   @property
-  def metrics(self):
+  def metrics(self):  # pyrefly: ignore[bad-override]
     """Overrides metrics from tf.keras.Model."""
     return self.loss_trackers
 

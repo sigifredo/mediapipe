@@ -39,6 +39,7 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/utils.h"
 #include "mediapipe/tasks/cc/vision/core/base_vision_task_api.h"
 #include "mediapipe/tasks/cc/vision/core/image_processing_options.h"
+#include "mediapipe/tasks/cc/vision/core/running_mode.h"
 #include "mediapipe/tasks/cc/vision/core/vision_task_api_factory.h"
 #include "mediapipe/tasks/cc/vision/gesture_recognizer/proto/gesture_classifier_graph_options.pb.h"
 #include "mediapipe/tasks/cc/vision/gesture_recognizer/proto/gesture_recognizer_graph_options.pb.h"
@@ -59,6 +60,7 @@ using GestureRecognizerGraphOptionsProto = ::mediapipe::tasks::vision::
 
 using ::mediapipe::NormalizedRect;
 
+constexpr char kTaskName[] = "GestureRecognizer";
 constexpr char kHandGestureSubgraphTypeName[] =
     "mediapipe.tasks.vision.gesture_recognizer.GestureRecognizerGraph";
 
@@ -206,13 +208,18 @@ absl::StatusOr<std::unique_ptr<GestureRecognizer>> GestureRecognizer::Create(
   }
   return core::VisionTaskApiFactory::Create<GestureRecognizer,
                                             GestureRecognizerGraphOptionsProto>(
-      CreateGraphConfig(
-          std::move(options_proto),
-          options->running_mode == core::RunningMode::LIVE_STREAM),
-      std::move(options->base_options.op_resolver), options->running_mode,
-      std::move(packets_callback),
-      /*disable_default_service=*/
-      options->base_options.disable_default_service);
+      {.config = CreateGraphConfig(
+           std::move(options_proto),
+           options->running_mode == core::RunningMode::LIVE_STREAM),
+       .task_name = kTaskName,
+       .task_running_mode = core::GetCoreRunningMode(options->running_mode),
+       .op_resolver = std::move(options->base_options.op_resolver),
+       .packets_callback = std::move(packets_callback),
+       .disable_default_service = options->base_options.disable_default_service,
+       .host_environment = options->base_options.host_environment,
+       .host_system = options->base_options.host_system,
+       .host_version = options->base_options.host_version,
+       .ca_bundle_path = options->base_options.ca_bundle_path});
 }
 
 absl::StatusOr<GestureRecognizerResult> GestureRecognizer::Recognize(
@@ -224,10 +231,10 @@ absl::StatusOr<GestureRecognizerResult> GestureRecognizer::Recognize(
         "GPU input images are currently not supported.",
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image,
-                                              /*roi_allowed=*/false));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
+                        ConvertToNormalizedRect(image_processing_options, image,
+                                                /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessImageData(
           {{kImageInStreamName, MakePacket<Image>(std::move(image))},
@@ -260,10 +267,10 @@ absl::StatusOr<GestureRecognizerResult> GestureRecognizer::RecognizeForVideo(
         absl::StrCat("GPU input images are currently not supported."),
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image,
-                                              /*roi_allowed=*/false));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
+                        ConvertToNormalizedRect(image_processing_options, image,
+                                                /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessVideoData(
           {{kImageInStreamName,
@@ -299,9 +306,9 @@ absl::Status GestureRecognizer::RecognizeAsync(
         absl::StrCat("GPU input images are currently not supported."),
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(image_processing_options, image,
-                                              /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
+                        ConvertToNormalizedRect(image_processing_options, image,
+                                                /*roi_allowed=*/false));
   return SendLiveStreamData(
       {{kImageInStreamName,
         MakePacket<Image>(std::move(image))

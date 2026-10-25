@@ -1,4 +1,4 @@
-/* Copyright 2024 The MediaPipe Authors.
+/* Copyright 2026 The MediaPipe Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,14 +19,10 @@ limitations under the License.
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <cstdint>
-
-#include "mediapipe/tasks/c/components/containers/keypoint.h"
 #include "mediapipe/tasks/c/core/base_options.h"
 #include "mediapipe/tasks/c/core/common.h"
 #include "mediapipe/tasks/c/core/mp_status.h"
-#include "mediapipe/tasks/c/vision/core/image_processing_options.h"
-#include "mediapipe/tasks/c/vision/image_segmenter/image_segmenter_result.h"
+#include "mediapipe/tasks/c/vision/core/image.h"
 
 #ifndef MP_EXPORT
 #if defined(_MSC_VER)
@@ -43,84 +39,83 @@ extern "C" {
 typedef struct MpInteractiveSegmenterInternal* MpInteractiveSegmenterPtr;
 
 // The options for configuring a mediapipe interactive segmenter task.
-struct InteractiveSegmenterOptions {
+struct MpInteractiveSegmenterOptions {
   // Base options for configuring MediaPipe Tasks, such as specifying the model
   // file with metadata, accelerator options, op resolver, etc.
-  struct BaseOptions base_options;
-
-  // Whether to output confidence masks.
-  bool output_confidence_masks = true;
-
-  // Whether to output category mask.
-  bool output_category_mask = false;
+  struct MpBaseOptions base_options;
 };
 
-// The Region-Of-Interest (ROI) to interact with.
-struct RegionOfInterest {
-  // Specifies the format used to specify the region-of-interest. Note that
-  // using `kUnspecified` is invalid.
-  enum {
-    kUnspecified = 0,  // Format not specified
-    kKeypoint = 1,     // Using keypoint to represent ROI
-    kScribble = 2      // Using scribble to represent ROI
-  } format;
+struct MpStrokePoint {
+  float x;
+  float y;
+};
 
-  // Represents the ROI in keypoint format, this should have a valid keypoint
-  // with coordinates `x` and `y` if `format` is `kKeyPoint`; `nullptr` if not
-  // present
-  NormalizedKeypoint* keypoint;
+// The brush mode representing the intent of the brush stroke.
+enum MpBrushMode {
+  // No-op.
+  MP_BRUSH_MODE_UNSPECIFIED = 0,
+  // Adds regions/objects of interest to the segmentation mask.
+  MP_BRUSH_MODE_POSITIVE = 1,
+  // Excludes regions/objects from the segmentation mask.
+  MP_BRUSH_MODE_NEGATIVE = 2,
+  // Draws a boundary around the object of interest to add to the segmentation
+  // mask.
+  MP_BRUSH_MODE_LASSO = 3,
+};
 
-  // Represents the ROI in scribble format, this should be not a `nullptr` if
-  // `format` is `kScribble`; `nullptr` if not present
-  NormalizedKeypoint* scribble;
+struct MpStroke {
+  enum MpBrushMode brush_mode;
+  struct MpStrokePoint* points;
+  uint32_t points_count;
+  bool is_completed;
+};
 
-  // Number of keypoints in scribble; 0 if not present
-  uint32_t scribble_count;
+struct MpStrokes {
+  struct MpStroke* strokes;
+  uint32_t strokes_count;
 };
 
 // Creates an InteractiveSegmenter from the provided `options`.
-// Return kMpOk on success and sets `segmenter` to the created
+//
+// Returns `kMpOk` on success and sets `segmenter` to the created
 // InteractiveSegmenter.
 //
 // To obtain a detailed error, `error_msg` must be non-null pointer to a
 // `char*`, which will be populated with a newly-allocated error message upon
-// failure. It's the caller responsibility to free the error message with
+// failure. It's the caller's responsibility to free the error message with
 // `MpErrorFree()`.
 MP_EXPORT MpStatus MpInteractiveSegmenterCreate(
-    struct InteractiveSegmenterOptions* options,
+    const struct MpInteractiveSegmenterOptions* options,
     MpInteractiveSegmenterPtr* segmenter, char** error_msg);
 
-// Performs interactive segmentation on the input `image`.
-// Return kMpOk on success and sets `result` to the segmentation result.
-// You must call `MpInteractiveSegmenterCloseResult` to free the result's
-// memory.
+// Sets the image to be segmented.
+MP_EXPORT MpStatus MpInteractiveSegmenterSetImage(
+    MpInteractiveSegmenterPtr segmenter, MpImagePtr image, char** error_msg);
+
+// Performs segmentation on the previously set image using provided `strokes`.
+//
+// Returns `kMpOk` on success and sets `mask` to the segmentation result mask.
+// You must call `MpImageFree` to free the `mask` memory.
 //
 // To obtain a detailed error, `error_msg` must be non-null pointer to a
 // `char*`, which will be populated with a newly-allocated error message upon
-// failure. It's the caller responsibility to free the error message with
+// failure. It's the caller's responsibility to free the error message with
 // `MpErrorFree()`.
-MP_EXPORT MpStatus MpInteractiveSegmenterSegmentImage(
-    MpInteractiveSegmenterPtr segmenter, MpImagePtr image,
-    const RegionOfInterest* roi,
-    const ImageProcessingOptions* image_processing_options,
-    ImageSegmenterResult* result, char** error_msg);
-
-// Frees the memory allocated inside a ImageSegmenterResult result.
-// Does not free the result pointer itself.
-MP_EXPORT void MpInteractiveSegmenterCloseResult(ImageSegmenterResult* result);
+MP_EXPORT MpStatus MpInteractiveSegmenterSegment(
+    MpInteractiveSegmenterPtr segmenter, const struct MpStrokes* strokes,
+    MpImagePtr* mask, char** error_msg);
 
 // Frees interactive segmenter.
-// Returns kMpOk on success.
 //
 // To obtain a detailed error, `error_msg` must be non-null pointer to a
 // `char*`, which will be populated with a newly-allocated error message upon
-// failure. It's the caller responsibility to free the error message with
+// failure. It's the caller's responsibility to free the error message with
 // `MpErrorFree()`.
 MP_EXPORT MpStatus MpInteractiveSegmenterClose(
     MpInteractiveSegmenterPtr segmenter, char** error_msg);
 
 #ifdef __cplusplus
-}  // extern C
+}  // extern "C"
 #endif
 
 #endif  // MEDIAPIPE_TASKS_C_VISION_INTERACTIVE_SEGMENTER_INTERACTIVE_SEGMENTER_H_

@@ -52,6 +52,7 @@ constexpr char kNormRectStreamName[] = "norm_rect_in";
 constexpr char kNormRectTag[] = "NORM_RECT";
 constexpr char kQualityScoresStreamName[] = "quality_scores";
 constexpr char kQualityScoresTag[] = "QUALITY_SCORES";
+constexpr char kTaskName[] = "ImageSegmenter";
 constexpr char kSubgraphTypeName[] =
     "mediapipe.tasks.vision.image_segmenter.ImageSegmenterGraph";
 constexpr int kMicroSecondsPerMilliSecond = 1000;
@@ -193,17 +194,21 @@ absl::StatusOr<std::unique_ptr<ImageSegmenter>> ImageSegmenter::Create(
               image_packet.Timestamp().Value() / kMicroSecondsPerMilliSecond);
         };
   }
-  auto image_segmenter =
-      core::VisionTaskApiFactory::Create<ImageSegmenter,
-                                         ImageSegmenterGraphOptionsProto>(
-          CreateGraphConfig(
-              std::move(options_proto), options->output_confidence_masks,
-              options->output_category_mask,
-              options->running_mode == core::RunningMode::LIVE_STREAM),
-          std::move(options->base_options.op_resolver), options->running_mode,
-          std::move(packets_callback),
-          /*disable_default_service=*/
-          options->base_options.disable_default_service);
+  auto image_segmenter = core::VisionTaskApiFactory::Create<
+      ImageSegmenter, ImageSegmenterGraphOptionsProto>(
+      {.config = CreateGraphConfig(
+           std::move(options_proto), options->output_confidence_masks,
+           options->output_category_mask,
+           options->running_mode == core::RunningMode::LIVE_STREAM),
+       .task_name = kTaskName,
+       .task_running_mode = core::GetCoreRunningMode(options->running_mode),
+       .op_resolver = std::move(options->base_options.op_resolver),
+       .packets_callback = std::move(packets_callback),
+       .disable_default_service = options->base_options.disable_default_service,
+       .host_environment = options->base_options.host_environment,
+       .host_system = options->base_options.host_system,
+       .host_version = options->base_options.host_version,
+       .ca_bundle_path = options->base_options.ca_bundle_path});
   if (!image_segmenter.ok()) {
     return image_segmenter.status();
   }
@@ -211,7 +216,7 @@ absl::StatusOr<std::unique_ptr<ImageSegmenter>> ImageSegmenter::Create(
       options->output_confidence_masks;
   image_segmenter.value()->output_category_mask_ =
       options->output_category_mask;
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       (*image_segmenter)->labels_,
       GetLabelsFromGraphConfig((*image_segmenter)->runner_->GetGraphConfig()));
   return image_segmenter;
@@ -229,18 +234,19 @@ absl::StatusOr<ImageSegmenterResult> ImageSegmenter::Segment(
 
 absl::StatusOr<ImageSegmenterResult> ImageSegmenter::Segment(
     mediapipe::Image image, SegmentationOptions segmentation_options) {
-  MP_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
+  ABSL_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
   if (image.UsesGpu()) {
     return CreateStatusWithPayload(
         absl::StatusCode::kInvalidArgument,
         absl::StrCat("GPU input images are currently not supported."),
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(
-                          segmentation_options.image_processing_options, image,
-                          /*roi_allowed=*/false));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(segmentation_options.image_processing_options,
+                              image,
+                              /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessImageData(
           {{kImageInStreamName, mediapipe::MakePacket<Image>(std::move(image))},
@@ -278,18 +284,19 @@ absl::StatusOr<ImageSegmenterResult> ImageSegmenter::SegmentForVideo(
 absl::StatusOr<ImageSegmenterResult> ImageSegmenter::SegmentForVideo(
     mediapipe::Image image, int64_t timestamp_ms,
     SegmentationOptions segmentation_options) {
-  MP_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
+  ABSL_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
   if (image.UsesGpu()) {
     return CreateStatusWithPayload(
         absl::StatusCode::kInvalidArgument,
         absl::StrCat("GPU input images are currently not supported."),
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(
-                          segmentation_options.image_processing_options, image,
-                          /*roi_allowed=*/false));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(segmentation_options.image_processing_options,
+                              image,
+                              /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(
       auto output_packets,
       ProcessVideoData(
           {{kImageInStreamName,
@@ -331,17 +338,18 @@ absl::Status ImageSegmenter::SegmentAsync(
 absl::Status ImageSegmenter::SegmentAsync(
     Image image, int64_t timestamp_ms,
     SegmentationOptions segmentation_options) {
-  MP_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
+  ABSL_RETURN_IF_ERROR(ValidateSegmentationOptions(segmentation_options));
   if (image.UsesGpu()) {
     return CreateStatusWithPayload(
         absl::StatusCode::kInvalidArgument,
         absl::StrCat("GPU input images are currently not supported."),
         MediaPipeTasksStatus::kRunnerUnexpectedInputError);
   }
-  MP_ASSIGN_OR_RETURN(NormalizedRect norm_rect,
-                      ConvertToNormalizedRect(
-                          segmentation_options.image_processing_options, image,
-                          /*roi_allowed=*/false));
+  ABSL_ASSIGN_OR_RETURN(
+      NormalizedRect norm_rect,
+      ConvertToNormalizedRect(segmentation_options.image_processing_options,
+                              image,
+                              /*roi_allowed=*/false));
   return SendLiveStreamData(
       {{kImageInStreamName,
         MakePacket<Image>(std::move(image))

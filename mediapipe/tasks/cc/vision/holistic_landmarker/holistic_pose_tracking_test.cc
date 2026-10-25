@@ -43,6 +43,7 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/mediapipe_builtin_op_resolver.h"
 #include "mediapipe/tasks/cc/core/proto/base_options.pb.h"
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
+#include "mediapipe/tasks/cc/core/running_mode.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
 #include "mediapipe/tasks/cc/core/utils.h"
 #include "mediapipe/tasks/cc/vision/holistic_landmarker/proto/holistic_result.pb.h"
@@ -125,7 +126,7 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
   HolisticPoseTrackingRequest request;
   request.landmarks = true;
   request.world_landmarks = true;
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       HolisticPoseTrackingOutput result,
       TrackHolisticPose(image, pose_detector_graph_options,
                         pose_landmarks_detector_graph_options, request, graph));
@@ -152,7 +153,10 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
   core::FixGraphBackEdges(config);
 
   return TaskRunner::Create(
-      config, std::make_unique<core::MediaPipeBuiltinOpResolver>());
+      {.config = config,
+       .task_name = "holistic_pose_tracking_test",
+       .task_running_mode = core::RunningMode::kImage,
+       .op_resolver = std::make_unique<core::MediaPipeBuiltinOpResolver>()});
 }
 
 // Remove fields not to be checked in the result, since the model

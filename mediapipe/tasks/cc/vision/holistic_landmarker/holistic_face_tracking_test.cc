@@ -43,6 +43,7 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/model_asset_bundle_resources.h"
 #include "mediapipe/tasks/cc/core/proto/base_options.pb.h"
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
+#include "mediapipe/tasks/cc/core/running_mode.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
 #include "mediapipe/tasks/cc/core/utils.h"
 #include "mediapipe/tasks/cc/vision/face_detector/proto/face_detector_graph_options.pb.h"
@@ -153,7 +154,7 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
 
   // Track holistic face.
   HolisticFaceTrackingRequest request;
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       HolisticFaceTrackingOutput result,
       TrackHolisticFace(image, face_landmarks_from_pose, detector_options,
                         landmarks_detector_options, request, graph));
@@ -179,8 +180,12 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
 
   auto config = graph.GetConfig();
   core::FixGraphBackEdges(config);
+
   return TaskRunner::Create(
-      config, std::make_unique<core::MediaPipeBuiltinOpResolver>());
+      {.config = config,
+       .task_name = "holistic_face_tracking_test",
+       .task_running_mode = core::RunningMode::kImage,
+       .op_resolver = std::make_unique<core::MediaPipeBuiltinOpResolver>()});
 }
 
 class HolisticFaceTrackingTest : public ::testing::Test {};

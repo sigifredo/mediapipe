@@ -17,6 +17,7 @@ package com.google.mediapipe.framework;
 import com.google.mediapipe.framework.ProtoUtil.SerializedMessage;
 import com.google.protobuf.MessageLite;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
 // TODO: use Preconditions in this file.
@@ -54,6 +55,19 @@ public class PacketCreator {
 
   public PacketCreator(Graph context) {
     mediapipeGraph = context;
+  }
+
+  /**
+   * Creates an empty MediaPipe Packet.
+   *
+   * <p>An empty packet carries no payload and signals the absence of data. Adding one to a graph
+   * input stream advances that stream's timestamp bounds, which lets a calculator with other
+   * synchronized, non-empty inputs run at that timestamp without receiving anything on the stream
+   * with the empty packet. If all graph inputs are empty for a specific timestamp, the calculator
+   * will not run unless the calculator is explicitly marked to receive timestamp bounds updates.
+   */
+  public Packet createEmpty() {
+    return Packet.create(nativeCreateEmpty(mediapipeGraph.getNativeHandle()));
   }
 
   /**
@@ -298,6 +312,17 @@ public class PacketCreator {
     return Packet.create(nativeCreateMatrix(mediapipeGraph.getNativeHandle(), rows, cols, data));
   }
 
+  /**
+   * Creates a Matrix packet from a Direct ByteBuffer/FloatBuffer without allocating Java arrays.
+   */
+  public Packet createMatrix(int rows, int cols, ByteBuffer data) {
+    if (!data.isDirect() || data.order() != ByteOrder.nativeOrder()) {
+      throw new IllegalArgumentException("Buffer must be a direct byte buffer in native order.");
+    }
+    return Packet.create(
+        nativeCreateMatrixDirect(mediapipeGraph.getNativeHandle(), rows, cols, data));
+  }
+
   /** Creates a {@link Packet} containing the serialized proto string. */
   public Packet createSerializedProto(MessageLite message) {
     return Packet.create(
@@ -481,6 +506,8 @@ public class PacketCreator {
     releaseCallback.release(new GraphGlSyncToken(nativeSyncToken));
   }
 
+  private native long nativeCreateEmpty(long context);
+
   private native long nativeCreateReferencePacket(long context, long packet);
 
   private native long nativeCreateAudioPacket(
@@ -523,6 +550,8 @@ public class PacketCreator {
       long context, int numChannels, double sampleRate);
 
   private native long nativeCreateMatrix(long context, int rows, int cols, float[] data);
+
+  private native long nativeCreateMatrixDirect(long context, int rows, int cols, ByteBuffer data);
 
   private native long nativeCreateGpuBuffer(
       long context,

@@ -45,11 +45,11 @@ import {
 } from '../../../../web/graph_runner/graph_runner';
 // Placeholder for internal dependency on trusted resource url
 
-import {PoseLandmarkerOptions} from './pose_landmarker_options';
+import type {PoseLandmarkerOptions} from './pose_landmarker_options';
 import {PoseLandmarkerResult} from './pose_landmarker_result';
 import {POSE_CONNECTIONS} from './pose_landmarks_connections';
 
-export * from './pose_landmarker_options';
+export type {PoseLandmarkerOptions} from './pose_landmarker_options';
 export * from './pose_landmarker_result';
 export {type ImageSource};
 
@@ -127,7 +127,7 @@ export class PoseLandmarker extends VisionTaskRunner {
    */
   static createFromModelBuffer(
     wasmFileset: WasmFileset,
-    modelAssetBuffer: Uint8Array|ReadableStreamDefaultReader,
+    modelAssetBuffer: Uint8Array | ReadableStreamDefaultReader,
   ): Promise<PoseLandmarker> {
     return VisionTaskRunner.createVisionInstance(PoseLandmarker, wasmFileset, {
       baseOptions: {modelAssetBuffer},
@@ -174,6 +174,10 @@ export class PoseLandmarker extends VisionTaskRunner {
     this.options.setPoseDetectorGraphOptions(this.poseDetectorGraphOptions);
 
     this.initDefaults();
+  }
+
+  protected override getTaskName(): string {
+    return 'PoseLandmarker';
   }
 
   protected override get baseOptions(): BaseOptionsProto {

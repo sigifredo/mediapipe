@@ -75,6 +75,13 @@ class Packet {
 
   mediapipe::Packet ConsumeAsLegacyPacket() && { return std::move(packet_); }
 
+  // Returns a shared pointer to the object of typename T if it contains
+  // one, an error otherwise (if the packet is empty). It is safe to
+  // concurrently call Share() on the same packet from multiple threads.
+  absl::StatusOr<std::shared_ptr<const T>> Share() const {
+    return packet_.Share<T>();
+  }
+
   // Debug info about the packet (type, timestamp).
   std::string DebugString() const { return packet_.DebugString(); }
 
@@ -105,7 +112,7 @@ template <typename T>
 absl::StatusOr<Packet<T>> WrapLegacyPacket(mediapipe::Packet packet) {
   if constexpr (!std::is_same_v<T, Any>) {
     if (!packet.IsEmpty()) {
-      MP_RETURN_IF_ERROR(packet.ValidateAsType<T>());
+      ABSL_RETURN_IF_ERROR(packet.ValidateAsType<T>());
     }
   }
   return Packet<T>(std::move(packet));

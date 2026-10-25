@@ -30,7 +30,10 @@ import {
   WasmMediaPipeConstructor,
   createMediaPipeLib,
 } from '../../../web/graph_runner/graph_runner';
+import {SupportLogging} from '../../../web/graph_runner/graph_runner_logging_lib';
 import {SupportModelResourcesGraphService} from '../../../web/graph_runner/register_model_resources_graph_service';
+import {TaskLogger} from './task_logger';
+import {createTasksLogger} from './task_logger_factory';
 
 import {WasmFileset} from './wasm_fileset';
 
@@ -39,7 +42,9 @@ const FREE_MEMORY_STREAM = 'free_memory';
 const UNUSED_STREAM_SUFFIX = '_unused_out';
 
 // tslint:disable-next-line:enforce-name-casing
-const CachedGraphRunnerType = SupportModelResourcesGraphService(GraphRunner);
+const CachedGraphRunnerType = SupportLogging(
+  SupportModelResourcesGraphService(GraphRunner),
+);
 
 // The OSS JS API does not support the builder pattern.
 // tslint:disable:jspb-use-builder-pattern
@@ -83,6 +88,7 @@ export async function createTaskRunner<T extends TaskRunner>(
     canvas,
     fileLocator,
   );
+  instance.enableLogging(options);
   await instance.setOptions(options);
   return instance;
 }
@@ -90,6 +96,7 @@ export async function createTaskRunner<T extends TaskRunner>(
 /** Base class for all MediaPipe Tasks. */
 export abstract class TaskRunner {
   protected abstract baseOptions: BaseOptionsProto;
+  protected logger?: TaskLogger;
   private processingErrors: Error[] = [];
   private latestOutputTimestamp = 0;
   private keepaliveNode?: CalculatorGraphConfig.Node;
@@ -118,6 +125,15 @@ export abstract class TaskRunner {
   /** Configures the task with custom options. */
   abstract setOptions(options: TaskRunnerOptions): Promise<void>;
 
+  /** Returns the public name of the task (e.g. FaceLandmarker). */
+  protected abstract getTaskName(): string;
+
+  enableLogging(options: TaskRunnerOptions): void {
+    const runningMode = (options as {runningMode: string}).runningMode ?? '';
+    const apiKey = this.graphRunner.getMediapipeApiKey();
+    this.logger = createTasksLogger(this.getTaskName(), runningMode, apiKey);
+  }
+
   /**
    * Applies the current set of options, including optionally any base options
    * that have not been processed by the task implementation. The options are
@@ -128,10 +144,18 @@ export abstract class TaskRunner {
    * @param options The options for the task.
    * @param loadTfliteModel Whether to load the model specified in
    *     `options.baseOptions`.
+   * @param isLiteRtLmModel Whether the model is a LiteRT LM model that should be
+   *     written as a `.litertlm` file.
+   * @param useLitert Whether to route inference through the LiteRT backend
+   *     instead of the legacy TFLite backend. This is an internal
+   *     execution-engine choice made per task, not a user-facing option:
+   *     callers still select CPU or GPU via `baseOptions.delegate`.
    */
   protected applyOptions(
     options: TaskRunnerOptions,
     loadTfliteModel = true,
+    isLiteRtLmModel = false,
+    useLitert = false,
   ): Promise<void> {
     if (loadTfliteModel) {
       const baseOptions: BaseOptions = options.baseOptions || {};
@@ -157,7 +181,9 @@ export abstract class TaskRunner {
         );
       }
 
-      this.setAcceleration(baseOptions);
+      this.setAcceleration(baseOptions, useLitert);
+      const modelPath = isLiteRtLmModel ? 'model.litertlm' : 'model.dat';
+
       if (baseOptions.modelAssetPath) {
         // We don't use `await` here since we want to apply most settings
         // synchronously.
@@ -172,31 +198,25 @@ export abstract class TaskRunner {
             }
           })
           .then((buffer) => {
-            try {
-              // Try to delete file as we cannot overwrite an existing file
-              // using our current API.
-              this.graphRunner.wasmModule.FS_unlink('/model.dat');
-            } catch {}
-            // TODO: Consider passing the model to the graph as an
-            // input side packet as this might reduce copies.
-            this.graphRunner.wasmModule.FS_createDataFile(
-              '/',
-              'model.dat',
-              new Uint8Array(buffer),
-              /* canRead= */ true,
-              /* canWrite= */ false,
-              /* canOwn= */ false,
-            );
-            this.setExternalFile('/model.dat');
+            this.writeModelBufferToFs(new Uint8Array(buffer), modelPath);
             this.refreshGraph();
             this.onGraphRefreshed();
           });
       } else if (baseOptions.modelAssetBuffer instanceof Uint8Array) {
-        this.setExternalFile(baseOptions.modelAssetBuffer);
+        if (isLiteRtLmModel) {
+          // LiteRT LM only supports reading from file.
+          this.writeModelBufferToFs(baseOptions.modelAssetBuffer, modelPath);
+        } else {
+          this.setExternalFile(baseOptions.modelAssetBuffer);
+        }
       } else if (baseOptions.modelAssetBuffer) {
         return streamToUint8Array(baseOptions.modelAssetBuffer).then(
           (buffer) => {
-            this.setExternalFile(buffer);
+            if (isLiteRtLmModel) {
+              this.writeModelBufferToFs(buffer, modelPath);
+            } else {
+              this.setExternalFile(buffer);
+            }
             this.refreshGraph();
             this.onGraphRefreshed();
           },
@@ -208,6 +228,27 @@ export abstract class TaskRunner {
     this.refreshGraph();
     this.onGraphRefreshed();
     return Promise.resolve();
+  }
+
+  private writeModelBufferToFs(buffer: Uint8Array, modelPath: string): void {
+    try {
+      // Try to delete file as we cannot overwrite an existing file
+      // using our current API.
+      this.graphRunner.wasmModule.FS_unlink(`/${modelPath}`);
+    } catch {
+      // Ignore errors if file doesn't exist.
+    }
+    // TODO: Consider passing the model to the graph as an
+    // input side packet as this might reduce copies.
+    this.graphRunner.wasmModule.FS_createDataFile(
+      '/',
+      modelPath,
+      buffer,
+      /* canRead= */ true,
+      /* canWrite= */ false,
+      /* canOwn= */ false,
+    );
+    this.setExternalFile(`/${modelPath}`);
   }
 
   /** Appliest the current options to the MediaPipe graph. */
@@ -251,8 +292,24 @@ export abstract class TaskRunner {
     this.graphRunner.registerModelResourcesGraphService();
 
     this.graphRunner.setGraph(graphData, isBinary);
+    this.logger?.logSessionStart();
     this.keepaliveNode = undefined;
     this.handleErrors();
+  }
+
+  /**
+   * Signals beginning of graph processing.
+   * @param timestamp The timestamp of the input packets.
+   */
+  protected startProcessing(timestamp?: number): void {
+    if (this.logger && timestamp !== undefined) {
+      const acceleration = this.baseOptions.getAcceleration();
+      if (acceleration?.hasGpu() || acceleration?.getLitert()?.hasGpu()) {
+        this.logger.recordGpuInputArrival(timestamp);
+      } else {
+        this.logger.recordCpuInputArrival(timestamp);
+      }
+    }
   }
 
   /**
@@ -260,9 +317,12 @@ export abstract class TaskRunner {
    * far as possible, performing all processing until no more processing can be
    * done.
    */
-  protected finishProcessing(): void {
+  protected finishProcessing(timestamp?: number): void {
     this.graphRunner.finishProcessing();
     this.handleErrors();
+    if (this.logger && timestamp !== undefined) {
+      this.logger.recordInvocationEnd(timestamp);
+    }
   }
 
   /*
@@ -278,11 +338,11 @@ export abstract class TaskRunner {
   }
 
   /**
-   * Gets a syncthethic timestamp in ms that can be used to send data to the
+   * Gets a synthetic timestamp in ms that can be used to send data to the
    * next packet. The timestamp is one millisecond past the last timestamp
    * received from the graph.
    */
-  protected getSynctheticTimestamp(): number {
+  protected getSyntheticTimestamp(): number {
     return this.latestOutputTimestamp + 1;
   }
 
@@ -322,7 +382,7 @@ export abstract class TaskRunner {
   }
 
   /** Configures the `acceleration` option. */
-  private setAcceleration(options: BaseOptions) {
+  private setAcceleration(options: BaseOptions, useLitert = false) {
     let acceleration = this.baseOptions.getAcceleration();
 
     if (!acceleration) {
@@ -339,6 +399,35 @@ export abstract class TaskRunner {
           new InferenceCalculatorOptions.Delegate.TfLite(),
         );
       }
+    }
+
+    if (useLitert) {
+      // `delegate` is a oneof, so selecting LiteRT below clears whatever is
+      // set now. Read it first.
+      //
+      // A previous setOptions() call may have already selected LiteRT GPU, and
+      // this call rebuilds the delegate from scratch, so carry that forward.
+      // Otherwise setOptions({minDetectionConfidence: 0.7}) -- which passes no
+      // delegate at all -- would silently drop the task to CPU.
+      const currentLitert = acceleration.getLitert();
+      const wantsGpu =
+        acceleration.hasGpu() || currentLitert?.hasGpu() === true;
+
+      const litert = new InferenceCalculatorOptions.Delegate.LiteRt();
+      if (wantsGpu) {
+        // Deliberately GPU-only: LiteRT treats the accelerator set as an allowlist.
+        // If CPU were included, execution would silently fall back to CPU with no
+        // warning whenever GPU acceleration is missing or incomplete. Leaving CPU out
+        // forces LiteRT to fail at compilation if any op is undelegated, ensuring
+        // unsupported models are caught explicitly. Mirrors tasks/cc/core/base_options.cc.
+        //
+        // Note: The Web WASM binary does not currently link a LiteRT GPU accelerator,
+        // so LiteRT GPU requests will fail until an accelerator is provided.
+        litert.setGpu(new InferenceCalculatorOptions.Delegate.LiteRt.Gpu());
+      } else {
+        litert.setCpu(new InferenceCalculatorOptions.Delegate.LiteRt.Cpu());
+      }
+      acceleration.setLitert(litert);
     }
 
     this.baseOptions.setAcceleration(acceleration);
@@ -381,6 +470,8 @@ export abstract class TaskRunner {
    */
   close(): void {
     this.keepaliveNode = undefined;
+    this.logger?.logSessionEnd();
+    this.logger?.close();
     this.graphRunner.closeGraph();
   }
 }

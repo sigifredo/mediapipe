@@ -25,13 +25,14 @@ limitations under the License.
 #include "mediapipe/framework/formats/matrix.h"
 #include "mediapipe/tasks/cc/audio/audio_classifier/proto/audio_classifier_graph_options.pb.h"
 #include "mediapipe/tasks/cc/audio/core/audio_task_api_factory.h"
+#include "mediapipe/tasks/cc/audio/core/running_mode.h"
 #include "mediapipe/tasks/cc/components/containers/classification_result.h"
 #include "mediapipe/tasks/cc/components/containers/proto/classifications.pb.h"
 #include "mediapipe/tasks/cc/components/processors/classifier_options.h"
 #include "mediapipe/tasks/cc/components/processors/proto/classifier_options.pb.h"
 #include "mediapipe/tasks/cc/core/proto/inference_subgraph.pb.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
-#include "tensorflow/lite/core/api/op_resolver.h"
+#include "tflite/core/api/op_resolver.h"
 
 namespace mediapipe {
 namespace tasks {
@@ -40,6 +41,7 @@ namespace audio_classifier {
 
 namespace {
 
+using ::mediapipe::tasks::audio::core::GetCoreRunningMode;
 using ::mediapipe::tasks::components::containers::ConvertToClassificationResult;
 using ::mediapipe::tasks::components::containers::proto::ClassificationResult;
 
@@ -52,6 +54,7 @@ constexpr char kTimestampedClassificationsName[] =
     "timestamped_classifications_out";
 constexpr char kSampleRateName[] = "sample_rate_in";
 constexpr char kSampleRateTag[] = "SAMPLE_RATE";
+constexpr char kTaskName[] = "AudioClassifier";
 constexpr char kSubgraphTypeName[] =
     "mediapipe.tasks.audio.audio_classifier.AudioClassifierGraph";
 constexpr int kMicroSecondsPerMilliSecond = 1000;
@@ -135,9 +138,15 @@ absl::StatusOr<std::unique_ptr<AudioClassifier>> AudioClassifier::Create(
   }
   return core::AudioTaskApiFactory::Create<AudioClassifier,
                                            proto::AudioClassifierGraphOptions>(
-      CreateGraphConfig(std::move(options_proto)),
-      std::move(options->base_options.op_resolver), options->running_mode,
-      std::move(packets_callback));
+      {.config = CreateGraphConfig(std::move(options_proto)),
+       .task_name = kTaskName,
+       .task_running_mode = GetCoreRunningMode(options->running_mode),
+       .op_resolver = std::move(options->base_options.op_resolver),
+       .packets_callback = std::move(packets_callback),
+       .host_environment = options->base_options.host_environment,
+       .host_system = options->base_options.host_system,
+       .host_version = options->base_options.host_version,
+       .ca_bundle_path = options->base_options.ca_bundle_path});
 }
 
 absl::StatusOr<std::vector<AudioClassifierResult>> AudioClassifier::Classify(
@@ -150,7 +159,8 @@ absl::StatusOr<std::vector<AudioClassifierResult>> AudioClassifier::Classify(
 absl::Status AudioClassifier::ClassifyAsync(Matrix audio_block,
                                             double audio_sample_rate,
                                             int64_t timestamp_ms) {
-  MP_RETURN_IF_ERROR(CheckOrSetSampleRate(kSampleRateName, audio_sample_rate));
+  ABSL_RETURN_IF_ERROR(
+      CheckOrSetSampleRate(kSampleRateName, audio_sample_rate));
   return SendAudioStreamData(
       {{kAudioStreamName,
         MakePacket<Matrix>(std::move(audio_block))

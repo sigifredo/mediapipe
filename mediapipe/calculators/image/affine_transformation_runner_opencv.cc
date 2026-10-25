@@ -46,6 +46,8 @@ int GetInterpolationForOpenCv(
       return cv::INTER_LINEAR;
     case AffineTransformation::Interpolation::kCubic:
       return cv::INTER_CUBIC;
+    case AffineTransformation::Interpolation::kNearest:
+      return cv::INTER_NEAREST;
   }
 }
 
@@ -171,7 +173,7 @@ absl::StatusOr<
     std::unique_ptr<AffineTransformation::Runner<ImageFrame, ImageFrame>>>
 CreateAffineTransformationOpenCvRunner(
     AffineTransformation::Interpolation interpolation) {
-  return absl::make_unique<OpenCvRunner>(interpolation);
+  return std::make_unique<OpenCvRunner>(interpolation);
 }
 
 }  // namespace mediapipe

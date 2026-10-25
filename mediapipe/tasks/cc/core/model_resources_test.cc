@@ -36,11 +36,11 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
 #include "mediapipe/tasks/cc/core/utils.h"
 #include "mediapipe/tasks/cc/metadata/metadata_extractor.h"
-#include "tensorflow/lite/c/common.h"
-#include "tensorflow/lite/core/api/op_resolver.h"
-#include "tensorflow/lite/kernels/builtin_op_kernels.h"
-#include "tensorflow/lite/mutable_op_resolver.h"
-#include "tensorflow/lite/test_util.h"
+#include "tflite/c/common.h"
+#include "tflite/core/api/op_resolver.h"
+#include "tflite/kernels/builtin_op_kernels.h"
+#include "tflite/mutable_op_resolver.h"
+#include "tflite/test_util.h"
 
 namespace tflite {
 namespace ops {
@@ -221,7 +221,7 @@ TEST_F(ModelResourcesTest, CreateSuccessWithCustomOpsFromFile) {
       auto model_resources,
       ModelResources::Create(
           kTestModelResourcesTag, std::move(model_file),
-          absl::make_unique<tflite::MutableOpResolver>(resolver)));
+          std::make_unique<tflite::MutableOpResolver>(resolver)));
 
   EXPECT_EQ(kTestModelResourcesTag, model_resources->GetTag());
   CheckModelResourcesPackets(model_resources.get());
@@ -282,7 +282,7 @@ TEST_F(ModelResourcesTest, CreateSuccessWithCustomOpsPacket) {
   auto model_file = std::make_unique<proto::ExternalFile>();
   model_file->set_file_name(kTestModelWithCustomOpsPath);
   auto external_op_resolver_packet = api2::PacketAdopting<tflite::OpResolver>(
-      absl::make_unique<tflite::MutableOpResolver>(resolver));
+      std::make_unique<tflite::MutableOpResolver>(resolver));
   MP_ASSERT_OK_AND_ASSIGN(
       auto model_resources,
       ModelResources::Create(kTestModelResourcesTag, std::move(model_file),

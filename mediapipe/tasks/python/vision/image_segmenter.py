@@ -42,7 +42,7 @@ class MpStringListC(ctypes.Structure):
   ]
 
 
-class ImageSegmenterResultC(ctypes.Structure):
+class MpImageSegmenterResultC(ctypes.Structure):
   _fields_ = [
       ('confidence_masks', ctypes.POINTER(ctypes.c_void_p)),
       ('confidence_masks_count', ctypes.c_uint32),
@@ -52,19 +52,21 @@ class ImageSegmenterResultC(ctypes.Structure):
       ('quality_scores_count', ctypes.c_uint32),
   ]
 
+
 _C_TYPES_RESULT_CALLBACK = ctypes.CFUNCTYPE(
     None,
     ctypes.c_int32,  # MpStatus
-    ctypes.POINTER(ImageSegmenterResultC),
+    ctypes.POINTER(MpImageSegmenterResultC),
     ctypes.c_void_p,  # MpImage
     ctypes.c_int64,  # timestamp_ms
 )
 
 
-class ImageSegmenterOptionsC(ctypes.Structure):
-  """C types for ImageSegmenterOptions."""
+class MpImageSegmenterOptionsC(ctypes.Structure):
+  """C types for MpImageSegmenterOptions."""
+
   _fields_ = [
-      ('base_options', base_options_c.BaseOptionsC),
+      ('base_options', base_options_c.MpBaseOptionsC),
       ('running_mode', ctypes.c_int),
       ('display_names_locale', ctypes.c_char_p),
       ('output_confidence_masks', ctypes.c_bool),
@@ -76,13 +78,13 @@ class ImageSegmenterOptionsC(ctypes.Structure):
   @doc_controls.do_not_generate_docs
   def from_c_options(
       cls,
-      base_options: base_options_c.BaseOptionsC,
+      base_options: base_options_c.MpBaseOptionsC,
       running_mode: _RunningMode,
       output_confidence_masks: bool,
       output_category_mask: bool,
       result_callback: _C_TYPES_RESULT_CALLBACK,
-  ) -> 'ImageSegmenterOptionsC':
-    """Creates an ImageSegmenterOptionsC object from the given options."""
+  ) -> 'MpImageSegmenterOptionsC':
+    """Creates an MpImageSegmenterOptionsC object from the given options."""
     empty_string = ctypes.c_char_p(b'')
     return cls(
         base_options=base_options,
@@ -98,7 +100,7 @@ _CTYPES_SIGNATURES = (
     mediapipe_c_utils.CStatusFunction(
         'MpImageSegmenterCreate',
         (
-            ctypes.POINTER(ImageSegmenterOptionsC),
+            ctypes.POINTER(MpImageSegmenterOptionsC),
             ctypes.POINTER(ctypes.c_void_p),  # Output param for segmenter
         ),
     ),
@@ -107,8 +109,10 @@ _CTYPES_SIGNATURES = (
         (
             ctypes.c_void_p,
             ctypes.c_void_p,
-            ctypes.POINTER(image_processing_options_c.ImageProcessingOptionsC),
-            ctypes.POINTER(ImageSegmenterResultC),
+            ctypes.POINTER(
+                image_processing_options_c.MpImageProcessingOptionsC
+            ),
+            ctypes.POINTER(MpImageSegmenterResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -116,9 +120,11 @@ _CTYPES_SIGNATURES = (
         (
             ctypes.c_void_p,
             ctypes.c_void_p,
-            ctypes.POINTER(image_processing_options_c.ImageProcessingOptionsC),
+            ctypes.POINTER(
+                image_processing_options_c.MpImageProcessingOptionsC
+            ),
             ctypes.c_int64,
-            ctypes.POINTER(ImageSegmenterResultC),
+            ctypes.POINTER(MpImageSegmenterResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -126,7 +132,9 @@ _CTYPES_SIGNATURES = (
         (
             ctypes.c_void_p,
             ctypes.c_void_p,
-            ctypes.POINTER(image_processing_options_c.ImageProcessingOptionsC),
+            ctypes.POINTER(
+                image_processing_options_c.MpImageProcessingOptionsC
+            ),
             ctypes.c_int64,
         ),
     ),
@@ -139,7 +147,7 @@ _CTYPES_SIGNATURES = (
     ),
     mediapipe_c_utils.CFunction(
         'MpImageSegmenterCloseResult',
-        [ctypes.POINTER(ImageSegmenterResultC)],
+        [ctypes.POINTER(MpImageSegmenterResultC)],
         None,
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -173,7 +181,7 @@ class ImageSegmenterResult:
   @classmethod
   @doc_controls.do_not_generate_docs
   def from_ctypes(
-      cls, c_result: ImageSegmenterResultC
+      cls, c_result: MpImageSegmenterResultC
   ) -> 'ImageSegmenterResult':
     """Creates an `ImageSegmenterResult` object from the given ctypes struct."""
     confidence_masks = None
@@ -316,13 +324,13 @@ class ImageSegmenter:
     """
 
     running_mode_module.validate_running_mode(
-        options.running_mode, options.result_callback
+        options.running_mode, options.result_callback  # pyrefly: ignore[bad-argument-type]
     )
 
     lib = mediapipe_c_bindings.load_shared_library(_CTYPES_SIGNATURES)
 
     def convert_result(
-        c_result_ptr: ctypes.POINTER(ImageSegmenterResultC),
+        c_result_ptr: ctypes.POINTER(MpImageSegmenterResultC),  # pyrefly: ignore[invalid-annotation]
         image_ptr: ctypes.c_void_p,
         timestamp_ms: int,
     ) -> tuple[ImageSegmenterResult, image_module.Image, int]:
@@ -336,7 +344,7 @@ class ImageSegmenter:
     c_callback = dispatcher.wrap_callback(
         options.result_callback, _C_TYPES_RESULT_CALLBACK
     )
-    c_options = ImageSegmenterOptionsC.from_c_options(
+    c_options = MpImageSegmenterOptionsC.from_c_options(
         base_options=options.base_options.to_ctypes(),
         running_mode=options.running_mode,
         output_confidence_masks=options.output_confidence_masks,
@@ -344,7 +352,7 @@ class ImageSegmenter:
         result_callback=c_callback,
     )
     segmenter_handle = ctypes.c_void_p()
-    lib.MpImageSegmenterCreate(
+    lib.MpImageSegmenterCreate(  # pyrefly: ignore[missing-attribute]
         ctypes.byref(c_options), ctypes.byref(segmenter_handle)
     )
     return cls(
@@ -377,20 +385,20 @@ class ImageSegmenter:
       RuntimeError: If image segmentation failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    c_result = ImageSegmenterResultC()
+    c_result = MpImageSegmenterResultC()
     options_c = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpImageSegmenterSegmentImage(
+    self._lib.MpImageSegmenterSegmentImage(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         options_c,
         ctypes.byref(c_result),
     )
     result = ImageSegmenterResult.from_ctypes(c_result)
-    self._lib.MpImageSegmenterCloseResult(ctypes.byref(c_result))
+    self._lib.MpImageSegmenterCloseResult(ctypes.byref(c_result))  # pyrefly: ignore[missing-attribute]
     return result
 
   def segment_for_video(
@@ -423,13 +431,13 @@ class ImageSegmenter:
       RuntimeError: If image segmentation failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    c_result = ImageSegmenterResultC()
+    c_result = MpImageSegmenterResultC()
     options_c = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpImageSegmenterSegmentForVideo(
+    self._lib.MpImageSegmenterSegmentForVideo(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         options_c,
@@ -437,7 +445,7 @@ class ImageSegmenter:
         ctypes.byref(c_result),
     )
     result = ImageSegmenterResult.from_ctypes(c_result)
-    self._lib.MpImageSegmenterCloseResult(ctypes.byref(c_result))
+    self._lib.MpImageSegmenterCloseResult(ctypes.byref(c_result))  # pyrefly: ignore[missing-attribute]
     return result
 
   def segment_async(
@@ -479,7 +487,7 @@ class ImageSegmenter:
         if image_processing_options
         else None
     )
-    self._lib.MpImageSegmenterSegmentAsync(
+    self._lib.MpImageSegmenterSegmentAsync(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         options_c,
@@ -500,7 +508,7 @@ class ImageSegmenter:
     """
     if not self._labels:
       c_labels = MpStringListC()
-      self._lib.MpImageSegmenterGetLabels(
+      self._lib.MpImageSegmenterGetLabels(  # pyrefly: ignore[missing-attribute]
           self._handle,
           ctypes.byref(c_labels),
       )
@@ -509,15 +517,15 @@ class ImageSegmenter:
         c_label = c_labels.strings[i]
         label = ctypes.string_at(c_label).decode('utf-8')
         self._labels.append(label)
-      self._lib.MpStringListFree(ctypes.byref(c_labels))
+      self._lib.MpStringListFree(ctypes.byref(c_labels))  # pyrefly: ignore[missing-attribute]
     return self._labels
 
   def close(self):
     """Closes ImageSegmenter."""
     if not self._handle:
       return
-    self._lib.MpImageSegmenterClose(self._handle)
-    self._handle = None
+    self._lib.MpImageSegmenterClose(self._handle)  # pyrefly: ignore[missing-attribute]
+    self._handle = None  # pyrefly: ignore[bad-assignment]
     self._dispatcher.close()
     self._lib.close()
 

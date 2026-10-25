@@ -40,16 +40,17 @@ _ImageProcessingOptions = image_processing_options_module.ImageProcessingOptions
 _C_TYPES_RESULT_CALLBACK = ctypes.CFUNCTYPE(
     None,
     ctypes.c_int32,  # MpStatus
-    ctypes.POINTER(detections_c_module.DetectionResultC),
+    ctypes.POINTER(detections_c_module.MpDetectionResultC),
     ctypes.c_void_p,  # MpImage
     ctypes.c_int64,  # timestamp_ms
 )
 
 
-class FaceDetectorOptionsC(ctypes.Structure):
-  """C types for FaceDetectorOptions."""
+class MpFaceDetectorOptionsC(ctypes.Structure):
+  """C types for MpFaceDetectorOptions."""
+
   _fields_ = [
-      ('base_options', base_options_c_module.BaseOptionsC),
+      ('base_options', base_options_c_module.MpBaseOptionsC),
       ('running_mode', ctypes.c_int),
       ('min_detection_confidence', ctypes.c_float),
       ('min_suppression_threshold', ctypes.c_float),
@@ -60,13 +61,13 @@ class FaceDetectorOptionsC(ctypes.Structure):
   @doc_controls.do_not_generate_docs
   def from_c_options(
       cls,
-      base_options: base_options_c_module.BaseOptionsC,
+      base_options: base_options_c_module.MpBaseOptionsC,
       running_mode: _RunningMode,
       min_detection_confidence: float,
       min_suppression_threshold: float,
       result_callback: _C_TYPES_RESULT_CALLBACK,
-  ) -> 'FaceDetectorOptionsC':
-    """Creates a FaceDetectorOptionsC object from the given options."""
+  ) -> 'MpFaceDetectorOptionsC':
+    """Creates a MpFaceDetectorOptionsC object from the given options."""
     return cls(
         base_options=base_options,
         running_mode=running_mode.ctype,
@@ -80,7 +81,7 @@ _CTYPES_SIGNATURES = (
     mediapipe_c_utils.CStatusFunction(
         'MpFaceDetectorCreate',
         (
-            ctypes.POINTER(FaceDetectorOptionsC),
+            ctypes.POINTER(MpFaceDetectorOptionsC),
             ctypes.POINTER(ctypes.c_void_p),
         ),
     ),
@@ -90,9 +91,9 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_module.ImageProcessingOptionsC
+                image_processing_options_c_module.MpImageProcessingOptionsC
             ),
-            ctypes.POINTER(detections_c_module.DetectionResultC),
+            ctypes.POINTER(detections_c_module.MpDetectionResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -101,10 +102,10 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_module.ImageProcessingOptionsC
+                image_processing_options_c_module.MpImageProcessingOptionsC
             ),
             ctypes.c_int64,
-            ctypes.POINTER(detections_c_module.DetectionResultC),
+            ctypes.POINTER(detections_c_module.MpDetectionResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -113,14 +114,14 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_module.ImageProcessingOptionsC
+                image_processing_options_c_module.MpImageProcessingOptionsC
             ),
             ctypes.c_int64,
         ),
     ),
     mediapipe_c_utils.CFunction(
         'MpFaceDetectorCloseResult',
-        [ctypes.POINTER(detections_c_module.DetectionResultC)],
+        [ctypes.POINTER(detections_c_module.MpDetectionResultC)],
         None,
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -230,13 +231,13 @@ class FaceDetector:
       RuntimeError: If other types of error occurred.
     """
     running_mode_module.validate_running_mode(
-        options.running_mode, options.result_callback
+        options.running_mode, options.result_callback  # pyrefly: ignore[bad-argument-type]
     )
 
     lib = mediapipe_c_bindings.load_shared_library(_CTYPES_SIGNATURES)
 
     def convert_result(
-        c_result_ptr: ctypes.POINTER(detections_c_module.DetectionResultC),
+        c_result_ptr: ctypes.POINTER(detections_c_module.MpDetectionResultC),  # pyrefly: ignore[invalid-annotation]
         image_ptr: ctypes.c_void_p,
         timestamp_ms: int,
     ) -> Tuple[FaceDetectorResult, image_module.Image, int]:
@@ -251,7 +252,7 @@ class FaceDetector:
     c_callback = dispatcher.wrap_callback(
         options.result_callback, _C_TYPES_RESULT_CALLBACK
     )
-    ctypes_options = FaceDetectorOptionsC.from_c_options(
+    ctypes_options = MpFaceDetectorOptionsC.from_c_options(
         base_options=options.base_options.to_ctypes(),
         running_mode=options.running_mode,
         min_detection_confidence=options.min_detection_confidence,
@@ -260,7 +261,7 @@ class FaceDetector:
     )
 
     detector_handle = ctypes.c_void_p()
-    lib.MpFaceDetectorCreate(
+    lib.MpFaceDetectorCreate(  # pyrefly: ignore[missing-attribute]
         ctypes.byref(ctypes_options),
         ctypes.byref(detector_handle),
     )
@@ -297,14 +298,14 @@ class FaceDetector:
       RuntimeError: If face detection failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    c_result = detections_c_module.DetectionResultC()
+    c_result = detections_c_module.MpDetectionResultC()
 
     c_image_processing_options = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpFaceDetectorDetectImage(
+    self._lib.MpFaceDetectorDetectImage(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -312,7 +313,7 @@ class FaceDetector:
     )
 
     py_result = FaceDetectorResult.from_ctypes(c_result)
-    self._lib.MpFaceDetectorCloseResult(ctypes.byref(c_result))
+    self._lib.MpFaceDetectorCloseResult(ctypes.byref(c_result))  # pyrefly: ignore[missing-attribute]
     return py_result
 
   def detect_for_video(
@@ -344,14 +345,14 @@ class FaceDetector:
       RuntimeError: If face detection failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    c_result = detections_c_module.DetectionResultC()
+    c_result = detections_c_module.MpDetectionResultC()
 
     c_image_processing_options = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpFaceDetectorDetectForVideo(
+    self._lib.MpFaceDetectorDetectForVideo(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -360,7 +361,7 @@ class FaceDetector:
     )
 
     py_result = FaceDetectorResult.from_ctypes(c_result)
-    self._lib.MpFaceDetectorCloseResult(ctypes.byref(c_result))
+    self._lib.MpFaceDetectorCloseResult(ctypes.byref(c_result))  # pyrefly: ignore[missing-attribute]
     return py_result
 
   def detect_async(
@@ -407,7 +408,7 @@ class FaceDetector:
         if image_processing_options
         else None
     )
-    self._lib.MpFaceDetectorDetectAsync(
+    self._lib.MpFaceDetectorDetectAsync(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -418,8 +419,8 @@ class FaceDetector:
     """Shuts down the MediaPipe task instance."""
     if not self._handle:
       return
-    self._lib.MpFaceDetectorClose(self._handle)
-    self._handle = None
+    self._lib.MpFaceDetectorClose(self._handle)  # pyrefly: ignore[missing-attribute]
+    self._handle = None  # pyrefly: ignore[bad-assignment]
     self._dispatcher.close()
     self._lib.close()
 

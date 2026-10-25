@@ -47,11 +47,16 @@ import {
 } from '../../../../web/graph_runner/graph_runner';
 // Placeholder for internal dependency on trusted resource url
 
-import {HandLandmarkerOptions} from './hand_landmarker_options';
-import {HandLandmarkerResult} from './hand_landmarker_result';
+import type {HandLandmarkerOptions} from './hand_landmarker_options';
+import type {HandLandmarkerResult} from './hand_landmarker_result';
 
-export * from './hand_landmarker_options';
-export * from './hand_landmarker_result';
+export type {HandLandmarkerOptions} from './hand_landmarker_options';
+export type {
+  Category,
+  HandLandmarkerResult,
+  Landmark,
+  NormalizedLandmark,
+} from './hand_landmarker_result';
 export {type ImageSource};
 
 // The OSS JS API does not support the builder pattern.
@@ -166,6 +171,10 @@ export class HandLandmarker extends VisionTaskRunner {
     this.options.setHandDetectorGraphOptions(this.handDetectorGraphOptions);
 
     this.initDefaults();
+  }
+
+  protected override getTaskName(): string {
+    return 'HandLandmarker';
   }
 
   protected override get baseOptions(): BaseOptionsProto {

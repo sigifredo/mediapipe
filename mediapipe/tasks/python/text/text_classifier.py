@@ -34,10 +34,10 @@ TextClassifierResult = classification_result_module.ClassificationResult
 ClassifierOptions = classifier_options_module.ClassifierOptions
 
 
-class TextClassifierOptionsC(ctypes.Structure):
+class MpTextClassifierOptionsC(ctypes.Structure):
   _fields_ = [
-      ("base_options", base_options_c_module.BaseOptionsC),
-      ("classifier_options", classifier_options_c_module.ClassifierOptionsC),
+      ("base_options", base_options_c_module.MpBaseOptionsC),
+      ("classifier_options", classifier_options_c_module.MpClassifierOptionsC),
   ]
 
 
@@ -69,8 +69,8 @@ class TextClassifierOptions:
   category_allowlist: Optional[List[str]] = None
   category_denylist: Optional[List[str]] = None
 
-  def to_ctypes(self) -> TextClassifierOptionsC:
-    """Generates a ctypes TextClassifierOptionsC."""
+  def to_ctypes(self) -> MpTextClassifierOptionsC:
+    """Generates a ctypes MpTextClassifierOptionsC."""
     base_options_c = self.base_options.to_ctypes()
     classifier_options_c = (
         classifier_options_c_module.convert_to_classifier_options_c(
@@ -84,7 +84,7 @@ class TextClassifierOptions:
         )
     )
 
-    c_options = TextClassifierOptionsC()
+    c_options = MpTextClassifierOptionsC()
     c_options.base_options = base_options_c
     c_options.classifier_options = classifier_options_c
     return c_options
@@ -94,7 +94,7 @@ _CTYPES_SIGNATURES = (
     mediapipe_c_utils.CStatusFunction(
         "MpTextClassifierCreate",
         [
-            ctypes.POINTER(TextClassifierOptionsC),
+            ctypes.POINTER(MpTextClassifierOptionsC),
             ctypes.POINTER(ctypes.c_void_p),
         ],
     ),
@@ -104,7 +104,7 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_char_p,
             ctypes.POINTER(
-                classification_result_c_module.ClassificationResultC
+                classification_result_c_module.MpClassificationResultC
             ),
         ],
     ),
@@ -116,7 +116,11 @@ _CTYPES_SIGNATURES = (
     ),
     mediapipe_c_utils.CFunction(
         "MpTextClassifierCloseResult",
-        [ctypes.POINTER(classification_result_c_module.ClassificationResultC)],
+        [
+            ctypes.POINTER(
+                classification_result_c_module.MpClassificationResultC
+            )
+        ],
         None,
     ),
 )
@@ -210,7 +214,7 @@ class TextClassifier:
     ctypes_options = options.to_ctypes()
 
     classifier_handle = ctypes.c_void_p()
-    lib.MpTextClassifierCreate(
+    lib.MpTextClassifierCreate(  # pyrefly: ignore[missing-attribute]
         ctypes.byref(ctypes_options),
         ctypes.byref(classifier_handle),
     )
@@ -230,22 +234,22 @@ class TextClassifier:
       ValueError: If any of the input arguments is invalid.
       RuntimeError: If text classification failed to run.
     """
-    ctypes_result = classification_result_c_module.ClassificationResultC()
+    ctypes_result = classification_result_c_module.MpClassificationResultC()
 
-    self._lib.MpTextClassifierClassify(
+    self._lib.MpTextClassifierClassify(  # pyrefly: ignore[missing-attribute]
         self._classifier_handle,
         text.encode("utf-8"),
         ctypes.byref(ctypes_result),
     )
     python_result = TextClassifierResult.from_ctypes(ctypes_result)
-    self._lib.MpTextClassifierCloseResult(ctypes.byref(ctypes_result))
+    self._lib.MpTextClassifierCloseResult(ctypes.byref(ctypes_result))  # pyrefly: ignore[missing-attribute]
     return python_result
 
   def close(self):
     """Shuts down the MediaPipe task instance."""
     if self._classifier_handle:
-      self._lib.MpTextClassifierClose(self._classifier_handle)
-      self._classifier_handle = None
+      self._lib.MpTextClassifierClose(self._classifier_handle)  # pyrefly: ignore[missing-attribute]
+      self._classifier_handle = None  # pyrefly: ignore[bad-assignment]
       self._lib.close()
 
   def __enter__(self):

@@ -66,11 +66,16 @@ import {
 } from '../../../../web/graph_runner/graph_runner';
 // Placeholder for internal dependency on trusted resource url
 
-import {HolisticLandmarkerOptions} from './holistic_landmarker_options';
-import {HolisticLandmarkerResult} from './holistic_landmarker_result';
+import type {HolisticLandmarkerOptions} from './holistic_landmarker_options';
+import type {HolisticLandmarkerResult} from './holistic_landmarker_result';
 
-export * from './holistic_landmarker_options';
-export * from './holistic_landmarker_result';
+export type {HolisticLandmarkerOptions} from './holistic_landmarker_options';
+export type {
+  Category,
+  HolisticLandmarkerResult,
+  Landmark,
+  NormalizedLandmark,
+} from './holistic_landmarker_result';
 export {type ImageSource};
 
 // The OSS JS API does not support the builder pattern.
@@ -315,6 +320,10 @@ export class HolisticLandmarker extends VisionTaskRunner {
     );
 
     this.initDefaults();
+  }
+
+  protected override getTaskName(): string {
+    return 'HolisticLandmarker';
   }
 
   protected override get baseOptions(): BaseOptionsProto {

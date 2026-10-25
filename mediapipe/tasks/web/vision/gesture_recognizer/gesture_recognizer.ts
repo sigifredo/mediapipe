@@ -34,6 +34,10 @@ import {
   NormalizedLandmark,
 } from '../../../../tasks/web/components/containers/landmark';
 import {convertClassifierOptionsToProto} from '../../../../tasks/web/components/processors/classifier_options';
+import {
+  convertToLandmarks,
+  convertToWorldLandmarks,
+} from '../../../../tasks/web/components/processors/landmark_result';
 import {WasmFileset} from '../../../../tasks/web/core/wasm_fileset';
 import {ImageProcessingOptions} from '../../../../tasks/web/vision/core/image_processing_options';
 import {
@@ -47,11 +51,16 @@ import {
 } from '../../../../web/graph_runner/graph_runner';
 // Placeholder for internal dependency on trusted resource url
 
-import {GestureRecognizerOptions} from './gesture_recognizer_options';
-import {GestureRecognizerResult} from './gesture_recognizer_result';
+import type {GestureRecognizerOptions} from './gesture_recognizer_options';
+import type {GestureRecognizerResult} from './gesture_recognizer_result';
 
-export * from './gesture_recognizer_options';
-export * from './gesture_recognizer_result';
+export type {GestureRecognizerOptions} from './gesture_recognizer_options';
+export type {
+  Category,
+  GestureRecognizerResult,
+  Landmark,
+  NormalizedLandmark,
+} from './gesture_recognizer_result';
 export {type ImageSource};
 
 // The OSS JS API does not support the builder pattern.
@@ -188,6 +197,10 @@ export class GestureRecognizer extends VisionTaskRunner {
     this.handLandmarksDetectorGraphOptions.setMinDetectionConfidence(
       DEFAULT_CONFIDENCE,
     );
+  }
+
+  protected override getTaskName(): string {
+    return 'GestureRecognizer';
   }
 
   protected override get baseOptions(): BaseOptionsProto {
@@ -374,16 +387,7 @@ export class GestureRecognizer extends VisionTaskRunner {
     for (const binaryProto of data) {
       const handLandmarksProto =
         NormalizedLandmarkList.deserializeBinary(binaryProto);
-      const landmarks: NormalizedLandmark[] = [];
-      for (const handLandmarkProto of handLandmarksProto.getLandmarkList()) {
-        landmarks.push({
-          x: handLandmarkProto.getX() ?? 0,
-          y: handLandmarkProto.getY() ?? 0,
-          z: handLandmarkProto.getZ() ?? 0,
-          visibility: handLandmarkProto.getVisibility() ?? 0,
-        });
-      }
-      this.landmarks.push(landmarks);
+      this.landmarks.push(convertToLandmarks(handLandmarksProto));
     }
   }
 
@@ -395,16 +399,9 @@ export class GestureRecognizer extends VisionTaskRunner {
     for (const binaryProto of data) {
       const handWorldLandmarksProto =
         LandmarkList.deserializeBinary(binaryProto);
-      const worldLandmarks: Landmark[] = [];
-      for (const handWorldLandmarkProto of handWorldLandmarksProto.getLandmarkList()) {
-        worldLandmarks.push({
-          x: handWorldLandmarkProto.getX() ?? 0,
-          y: handWorldLandmarkProto.getY() ?? 0,
-          z: handWorldLandmarkProto.getZ() ?? 0,
-          visibility: handWorldLandmarkProto.getVisibility() ?? 0,
-        });
-      }
-      this.worldLandmarks.push(worldLandmarks);
+      this.worldLandmarks.push(
+        convertToWorldLandmarks(handWorldLandmarksProto),
+      );
     }
   }
 

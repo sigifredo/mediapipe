@@ -53,7 +53,7 @@ std::unique_ptr<ImageFrame> CreateImageFrame(
         static_cast<uint8_t*>(data), ImageFrame::PixelDataDeleter::kNone);
     auto image_frame_copy = absl::make_unique<ImageFrame>();
     // Set alignment_boundary to kGlDefaultAlignmentBoundary so that both
-    // GPU and CPU can process it.
+    // MP_DELEGATE_GPU and MP_DELEGATE_CPU can process it.
     image_frame_copy->CopyFrom(*image_frame,
                                ImageFrame::kGlDefaultAlignmentBoundary);
     return image_frame_copy;
@@ -74,7 +74,8 @@ inline const T* GenerateContiguousDataArray(const MpImageInternal* image) {
   } else {
     size_t buffer_size = image_frame->PixelDataSizeStoredContiguously();
     std::vector<uint8_t> contiguous_data_copy(buffer_size);
-    image_frame->CopyToBuffer(contiguous_data_copy.data(), buffer_size);
+    image_frame->CopyToBuffer(reinterpret_cast<T*>(contiguous_data_copy.data()),
+                              static_cast<int>(buffer_size / sizeof(T)));
     image->cached_contiguous_data = std::move(contiguous_data_copy);
     return reinterpret_cast<const T*>(image->cached_contiguous_data.data());
   }

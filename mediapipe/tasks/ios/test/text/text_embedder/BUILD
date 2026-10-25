@@ -7,7 +7,7 @@ load(
     "swift_library",
 )
 load(
-    "@org_tensorflow//tensorflow/lite:special_rules.bzl",
+    "@litert//tflite:special_rules.bzl",
     "tflite_ios_lab_runner",
 )
 load("@rules_cc//cc:objc_library.bzl", "objc_library")
@@ -35,11 +35,14 @@ objc_library(
     testonly = True,
     srcs = ["MPPTextEmbedderTests.m"],
     data = [
+        "//mediapipe/models/embedding_gemma:embedding_gemma.task",
+        "//mediapipe/tasks/testdata/text:gecko_model",
         "//mediapipe/tasks/testdata/text:mobilebert_embedding_model",
         "//mediapipe/tasks/testdata/text:regex_embedding_with_metadata",
     ],
     deps = [
         "//mediapipe/tasks/ios/common:MPPCommon",
+        "//mediapipe/tasks/ios/core:MPPTaskPart",
         "//mediapipe/tasks/ios/text/text_embedder:MPPTextEmbedder",
         "//third_party/apple_frameworks:XCTest",
     ],
@@ -59,12 +62,15 @@ swift_library(
     testonly = True,
     srcs = ["TextEmbedderTests.swift"],
     data = [
+        "//mediapipe/models/embedding_gemma:embedding_gemma.task",
+        "//mediapipe/tasks/testdata/text:gecko_model",
         "//mediapipe/tasks/testdata/text:mobilebert_embedding_model",
         "//mediapipe/tasks/testdata/text:regex_embedding_with_metadata",
     ],
     tags = TFL_DEFAULT_TAGS,
     deps = [
         "//mediapipe/tasks/ios/common:MPPCommon",
+        "//mediapipe/tasks/ios/core:MPPTaskPart",
         "//mediapipe/tasks/ios/text/text_embedder:MPPTextEmbedder",
         "//third_party/apple_frameworks:XCTest",
     ],

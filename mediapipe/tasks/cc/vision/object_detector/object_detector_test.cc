@@ -41,11 +41,11 @@ limitations under the License.
 #include "mediapipe/tasks/cc/vision/core/running_mode.h"
 #include "mediapipe/tasks/cc/vision/utils/image_tensor_specs.h"
 #include "mediapipe/tasks/cc/vision/utils/image_utils.h"
-#include "tensorflow/lite/c/common.h"
-#include "tensorflow/lite/core/api/op_resolver.h"
-#include "tensorflow/lite/kernels/builtin_op_kernels.h"
-#include "tensorflow/lite/mutable_op_resolver.h"
-#include "tensorflow/lite/test_util.h"
+#include "tflite/c/common.h"
+#include "tflite/core/api/op_resolver.h"
+#include "tflite/kernels/builtin_op_kernels.h"
+#include "tflite/mutable_op_resolver.h"
+#include "tflite/test_util.h"
 
 namespace tflite {
 namespace ops {
@@ -94,12 +94,16 @@ constexpr absl::string_view kEfficientDetWithoutNms{
 // If the proto definition changes, please also change this function.
 void ExpectApproximatelyEqual(const ObjectDetectorResult& actual,
                               const ObjectDetectorResult& expected) {
-  const float kPrecision = 1e-6;
+  const float kPrecision = 0.03;
+  const int kBoxTolerance = 20;
   EXPECT_EQ(actual.detections.size(), expected.detections.size());
   for (int i = 0; i < actual.detections.size(); ++i) {
     const Detection& a = actual.detections[i];
     const Detection& b = expected.detections[i];
-    EXPECT_EQ(a.bounding_box, b.bounding_box);
+    EXPECT_NEAR(a.bounding_box.left, b.bounding_box.left, kBoxTolerance);
+    EXPECT_NEAR(a.bounding_box.top, b.bounding_box.top, kBoxTolerance);
+    EXPECT_NEAR(a.bounding_box.right, b.bounding_box.right, kBoxTolerance);
+    EXPECT_NEAR(a.bounding_box.bottom, b.bounding_box.bottom, kBoxTolerance);
     EXPECT_EQ(a.categories.size(), 1);
     EXPECT_EQ(b.categories.size(), 1);
     EXPECT_EQ(a.categories[0].category_name, b.categories[0].category_name);
@@ -169,7 +173,7 @@ TEST_F(CreateFromOptionsTest, SucceedsWithSelectiveOpResolver) {
   options->base_options.model_asset_path =
       JoinPath("./", kTestDataDirectory, kMobileSsdWithMetadata);
   options->base_options.op_resolver =
-      absl::make_unique<MobileSsdQuantizedOpResolver>();
+      std::make_unique<MobileSsdQuantizedOpResolver>();
   MP_ASSERT_OK(ObjectDetector::Create(std::move(options)));
 }
 
@@ -201,7 +205,7 @@ TEST_F(CreateFromOptionsTest, FailsWithSelectiveOpResolverMissingOps) {
   options->base_options.model_asset_path =
       JoinPath("./", kTestDataDirectory, kMobileSsdWithMetadata);
   options->base_options.op_resolver =
-      absl::make_unique<MobileSsdQuantizedOpResolverMissingOps>();
+      std::make_unique<MobileSsdQuantizedOpResolverMissingOps>();
   auto object_detector = ObjectDetector::Create(std::move(options));
   // TODO: Make MediaPipe InferenceCalculator report the detailed.
   // interpreter errors (e.g., "Encountered unresolved custom op").

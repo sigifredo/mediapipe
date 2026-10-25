@@ -27,14 +27,17 @@ cc_library(
 )
 
 IMAGE_DEPS = [
-    "//mediapipe/tasks/c/core:common",
     ":image_frame_util",
+    "@easyexif//:easyexif",
+    "@com_google_absl//absl/strings:string_view",
     "@com_google_absl//absl/log:absl_log",
     "@com_google_absl//absl/status",
     "@com_google_absl//absl/status:statusor",
     "@com_google_absl//absl/strings:str_format",
+    "//mediapipe/framework/deps:file_helpers",
     "//mediapipe/framework/formats:image",
     "//mediapipe/framework/formats:image_frame",
+    "//mediapipe/tasks/c/core:common",
     "//mediapipe/tasks/c/core:mp_status",
     "//mediapipe/tasks/c/core:mp_status_converter",
     "@stblib//:stb_image",
@@ -45,12 +48,9 @@ cc_library(
     srcs = ["image.cc"],
     hdrs = ["image.h"],
     deps = IMAGE_DEPS,
-)
-
-cc_library(
-    name = "image_c_lib",
-    hdrs = ["image.h"],
-    deps = IMAGE_DEPS + [":image"],
+    # The MpImage* C API is exported from shared libraries that are linked
+    # without whole-archive; nothing inside e.g. the retrieval library
+    # references it, so it has to be linked unconditionally.
     alwayslink = 1,
 )
 

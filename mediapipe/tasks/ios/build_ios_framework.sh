@@ -17,8 +17,8 @@
 #   * BAZEL: path to bazel. defaults to the first one available in PATH
 #   * FRAMEWORK_NAME: name of the iOS framework to be built. Currently the
 #   * accepted values are MediaPipeTasksCommon, MediaPipeTasksText,
-#   * MediaPipeTasksVision, MediaPipeTasksAudio, MediaPipeTasksGenAIC,
-#   * MediaPipeTasksGenAI.
+#   * MediaPipeTasksVision, MediaPipeTasksAudio, MediaPipeTasksRetrieval,
+#   * MediaPipeTasksGenAIC, MediaPipeTasksGenAI.
 #   * MPP_BUILD_VERSION: to specify the release version. defaults to 0.0.1-dev
 #   * IS_RELEASE_BUILD: set as true if this build should be a release build
 #   * ARCHIVE_FRAMEWORK: set as true if the framework should be archived
@@ -60,12 +60,14 @@ case $FRAMEWORK_NAME in
     ;;
   "MediaPipeTasksAudio")
     ;;
+  "MediaPipeTasksRetrieval")
+    ;;
   "MediaPipeTasksGenAIC")
     ;;
   "MediaPipeTasksGenAI")
     ;;
   *)
-    echo "Wrong framework name. The following framework names are allowed: MediaPipeTasksText, MediaPipeTasksVision, MediaPipeTasksAudio, MediaPipeTasksCommon, MediaPipeTasksGenAI, MediaPipeTasksGenAIC"
+    echo "Wrong framework name. The following framework names are allowed: MediaPipeTasksText, MediaPipeTasksVision, MediaPipeTasksAudio, MediaPipeTasksRetrieval, MediaPipeTasksCommon, MediaPipeTasksGenAI, MediaPipeTasksGenAIC"
     exit 1
   ;;
 esac
@@ -105,7 +107,7 @@ function build_ios_frameworks_and_libraries {
   # the order of a few MBs.
 
   # Build Task Library xcframework.
-  local FRAMEWORK_CQUERY_COMMAND="-c opt --config=ios_sim_device_fat --apple_generate_dsym=false --define OPENCV=source ${FULL_FRAMEWORK_TARGET}"
+  local FRAMEWORK_CQUERY_COMMAND="-c opt --config=ios_sim_device_fat --apple_generate_dsym=false --define OPENCV=source --define=LITERT_LM_FST_CONSTRAINTS_DISABLED=1 --define=DISABLE_HUGGINGFACE_TOKENIZER=1 ${FULL_FRAMEWORK_TARGET}"
 
   ${BAZEL} build ${FRAMEWORK_CQUERY_COMMAND}
   IOS_FRAMEWORK_PATH="$(get_output_file_path "${FRAMEWORK_CQUERY_COMMAND}")"
@@ -115,26 +117,26 @@ function build_ios_frameworks_and_libraries {
   # are to be force loaded. Hence the graph libraies are only built if the framework
   # name is `MediaPipeTasksCommon`.`
     "MediaPipeTasksCommon")
-      local IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_sim_fat --apple_generate_dsym=false --define OPENCV=source //mediapipe/tasks/ios:MediaPipeTaskGraphs_library"
+      local IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_sim_fat --apple_generate_dsym=false --define OPENCV=source --define=LITERT_LM_FST_CONSTRAINTS_DISABLED=1 --define=DISABLE_HUGGINGFACE_TOKENIZER=1 //mediapipe/tasks/ios:MediaPipeTaskGraphs_library"
       ${BAZEL} build ${IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND}
       IOS_GRAPHS_SIMULATOR_LIBRARY_PATH="$(get_output_file_path "${IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND}")"
 
       # Build static library for iOS devices with arch ios_arm64. We don't need to build for armv7 since
       # our deployment target is iOS 12.0. iOS 12.0 and upwards is not supported by old armv7 devices.
-      local IOS_DEVICE_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_arm64 --apple_generate_dsym=false --define OPENCV=source //mediapipe/tasks/ios:MediaPipeTaskGraphs_library"
+      local IOS_DEVICE_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_arm64 --apple_generate_dsym=false --define OPENCV=source --define=LITERT_LM_FST_CONSTRAINTS_DISABLED=1 --define=DISABLE_HUGGINGFACE_TOKENIZER=1 //mediapipe/tasks/ios:MediaPipeTaskGraphs_library"
       ${BAZEL} build ${IOS_DEVICE_LIBRARY_CQUERY_COMMAND}
       IOS_GRAPHS_DEVICE_LIBRARY_PATH="$(get_output_file_path "${IOS_DEVICE_LIBRARY_CQUERY_COMMAND}")"
       ;;
     # This section is for internal purposes only.
     "MediaPipeTasksGenAIC")
       if [[ ! -z ${ENABLE_ODML_COCOAPODS_BUILD+x} ]]; then
-        local IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_sim_fat --apple_generate_dsym=false //mediapipe/tasks/ios:MediaPipeTasksGenAI_library"
+        local IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_sim_fat --apple_generate_dsym=false --define=LITERT_LM_FST_CONSTRAINTS_DISABLED=1 --define=DISABLE_HUGGINGFACE_TOKENIZER=1 //mediapipe/tasks/ios:MediaPipeTasksGenAI_library"
         ${BAZEL} build ${IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND}
         IOS_GENAI_SIMULATOR_LIBRARY_PATH="$(get_output_file_path "${IOS_SIM_FAT_LIBRARY_CQUERY_COMMAND}")"
 
         # Build static library for iOS devices with arch ios_arm64. We don't need to build for armv7 since
         # our deployment target is iOS 12.0. iOS 12.0 and upwards is not supported by old armv7 devices.
-        local IOS_DEVICE_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_arm64 --apple_generate_dsym=false //mediapipe/tasks/ios:MediaPipeTasksGenAI_library"
+        local IOS_DEVICE_LIBRARY_CQUERY_COMMAND="-c opt --config=ios_arm64 --apple_generate_dsym=false --define=LITERT_LM_FST_CONSTRAINTS_DISABLED=1 --define=DISABLE_HUGGINGFACE_TOKENIZER=1 //mediapipe/tasks/ios:MediaPipeTasksGenAI_library"
         ${BAZEL} build ${IOS_DEVICE_LIBRARY_CQUERY_COMMAND}
         IOS_GENAI_DEVICE_LIBRARY_PATH="$(get_output_file_path "${IOS_DEVICE_LIBRARY_CQUERY_COMMAND}")"
       fi

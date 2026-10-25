@@ -36,9 +36,10 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/model_resources.h"
 #include "mediapipe/tasks/cc/core/proto/acceleration.pb.h"
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
+#include "mediapipe/tasks/cc/core/running_mode.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
 #include "mediapipe/tasks/cc/vision/utils/image_utils.h"
-#include "tensorflow/lite/test_util.h"
+#include "tflite/test_util.h"
 
 namespace mediapipe {
 namespace tasks {
@@ -52,6 +53,7 @@ using ::mediapipe::api2::builder::Graph;
 using ::mediapipe::api2::builder::Source;
 using ::mediapipe::file::JoinPath;
 using ::mediapipe::tasks::core::ModelResources;
+using ::mediapipe::tasks::core::RunningMode;
 using ::mediapipe::tasks::core::TaskRunner;
 using ::mediapipe::tasks::vision::DecodeImageFromFile;
 using ::testing::ContainerEq;
@@ -110,7 +112,7 @@ absl::StatusOr<std::unique_ptr<TaskRunner>> CreateTaskRunner(
       preprocessing.GetOptions<proto::ImagePreprocessingGraphOptions>();
   options.mutable_image_to_tensor_options()->set_keep_aspect_ratio(
       keep_aspect_ratio);
-  MP_RETURN_IF_ERROR(
+  ABSL_RETURN_IF_ERROR(
       ConfigureImagePreprocessingGraph(model_resources, false, &options));
   graph[Input<Image>(kImageTag)].SetName(kImageName) >>
       preprocessing.In(kImageTag);
@@ -123,7 +125,9 @@ absl::StatusOr<std::unique_ptr<TaskRunner>> CreateTaskRunner(
   preprocessing.Out(kLetterboxPaddingTag).SetName(kLetterboxPaddingName) >>
       graph[Output<std::array<float, 4>>(kLetterboxPaddingTag)];
 
-  return TaskRunner::Create(graph.GetConfig());
+  return TaskRunner::Create({.config = graph.GetConfig(),
+                             .task_name = "image_preprocessor_test",
+                             .task_running_mode = RunningMode::kImage});
 }
 
 class ConfigureTest : public tflite::testing::Test {};

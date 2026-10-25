@@ -107,7 +107,7 @@ public final class HolisticLandmarker extends BaseVisionTaskApi {
       Collections.unmodifiableList(Arrays.asList("IMAGE:" + IMAGE_IN_STREAM_NAME));
 
   static {
-    System.loadLibrary("mediapipe_tasks_vision_jni");
+    System.loadLibrary("mediapipe_tasks_jni");
   }
 
   /**
@@ -200,6 +200,7 @@ public final class HolisticLandmarker extends BaseVisionTaskApi {
                 getNormalizedLandmarkList(packets.get(FACE_LANDMARKS_OUT_STREAM_INDEX));
             Optional<ClassificationList> faceBlendshapeProtos =
                 landmarkerOptions.outputFaceBlendshapes()
+                        && !packets.get(faceBlendshapesOutStreamIndex[0]).isEmpty()
                     ? Optional.of(
                         PacketGetter.getProto(
                             packets.get(faceBlendshapesOutStreamIndex[0]),
@@ -211,6 +212,7 @@ public final class HolisticLandmarker extends BaseVisionTaskApi {
                 getLandmarkList(packets.get(POSE_WORLD_LANDMARKS_OUT_STREAM_INDEX));
             Optional<MPImage> segmentationMask =
                 landmarkerOptions.outputPoseSegmentationMasks()
+                        && !packets.get(poseSegmentationMasksOutStreamIndex[0]).isEmpty()
                     ? Optional.of(
                         getSegmentationMask(packets, poseSegmentationMasksOutStreamIndex[0]))
                     : Optional.empty();
@@ -234,7 +236,7 @@ public final class HolisticLandmarker extends BaseVisionTaskApi {
                 rightHandLandmarkProtos,
                 rightHandWorldLandmarkProtos,
                 BaseVisionTaskApi.generateResultTimestampMs(
-                    landmarkerOptions.runningMode(), packets.get(FACE_LANDMARKS_OUT_STREAM_INDEX)));
+                    landmarkerOptions.runningMode(), packets.get(IMAGE_OUT_STREAM_INDEX)));
           }
 
           @Override

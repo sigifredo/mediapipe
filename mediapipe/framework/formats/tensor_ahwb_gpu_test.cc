@@ -9,10 +9,12 @@
 #include "absl/algorithm/container.h"
 #include "mediapipe/framework/formats/tensor.h"
 #include "mediapipe/framework/formats/tensor/views/data_types.h"
+#include "mediapipe/framework/memory_manager.h"
 #include "mediapipe/gpu/gpu_test_base.h"
+#include "mediapipe/gpu/multi_pool.h"
 #include "mediapipe/gpu/shader_util.h"
-#include "tensorflow/lite/delegates/gpu/gl/gl_call.h"
 #include "testing/base/public/gunit.h"
+#include "tflite/delegates/gpu/gl/gl_call.h"
 
 // The test creates OpenGL ES buffer, fills the buffer with incrementing values
 // 0.0, 0.1, 0.2 etc. with the compute shader on GPU.
@@ -264,6 +266,176 @@ TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewAhwbFromCpu) {
   });
 }
 
+TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewFromAhwbWrite) {
+  constexpr size_t kNumElements = 20;
+  std::vector<float> reference = CreateReferenceData(kNumElements);
+
+  Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}));
+  {
+    auto view = tensor.GetAHardwareBufferWriteView();
+    ASSERT_NE(view.handle(), nullptr);
+    if (__builtin_available(android 26, *)) {
+      void* ptr = nullptr;
+      ASSERT_EQ(AHardwareBuffer_lock(view.handle(),
+                                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1,
+                                     nullptr, &ptr),
+                0);
+      std::memcpy(ptr, reference.data(), kNumElements * sizeof(float));
+      ASSERT_EQ(AHardwareBuffer_unlock(view.handle(), nullptr), 0);
+    }
+    view.SetWritingFinishedFD(-1, [](bool) { return true; });
+  }
+
+  RunInGlContext([&] {
+    auto ssbo_view = tensor.GetOpenGlBufferReadView();
+    ASSERT_NE(ssbo_view.name(), 0);
+
+    std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
+TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewAhwbWriteThenCpuWrite) {
+  constexpr size_t kNumElements = 20;
+  std::vector<float> reference = CreateReferenceData(kNumElements);
+
+  Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}));
+  {
+    // Allocate AHWB first so cpu_buffer_ remains nullptr.
+    ASSERT_NE(tensor.GetAHardwareBufferWriteView().handle(), nullptr);
+  }
+  {
+    // Populate AHWB-backed tensor via CPU write view.
+    absl::c_copy(reference, tensor.GetCpuWriteView().buffer<float>());
+  }
+
+  RunInGlContext([&] {
+    auto ssbo_view = tensor.GetOpenGlBufferReadView();
+    ASSERT_NE(ssbo_view.name(), 0);
+
+    std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
+TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewCpuWriteThenAhwbWrite) {
+  constexpr size_t kNumElements = 20;
+  std::vector<float> reference = CreateReferenceData(kNumElements);
+
+  Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}));
+  {
+    // Allocate cpu_buffer_ first with zeroes.
+    float* cpu_ptr = tensor.GetCpuWriteView().buffer<float>();
+    ASSERT_NE(cpu_ptr, nullptr);
+    std::fill_n(cpu_ptr, kNumElements, 0.0f);
+  }
+  {
+    // Overwrite tensor via AHardwareBufferWriteView.
+    auto view = tensor.GetAHardwareBufferWriteView();
+    ASSERT_NE(view.handle(), nullptr);
+    if (__builtin_available(android 26, *)) {
+      void* ptr = nullptr;
+      ASSERT_EQ(AHardwareBuffer_lock(view.handle(),
+                                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1,
+                                     nullptr, &ptr),
+                0);
+      std::memcpy(ptr, reference.data(), kNumElements * sizeof(float));
+      ASSERT_EQ(AHardwareBuffer_unlock(view.handle(), nullptr), 0);
+    }
+    view.SetWritingFinishedFD(-1, [](bool) { return true; });
+  }
+
+  RunInGlContext([&] {
+    auto ssbo_view = tensor.GetOpenGlBufferReadView();
+    ASSERT_NE(ssbo_view.name(), 0);
+
+    std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
+// A CPU read of an AHWB-written tensor sets kValidCpu while a stale host buffer
+// from an earlier CPU write is still allocated. If the AHWB -> SSBO binding
+// fails, the SSBO must still be filled from the AHWB, not the stale buffer.
+TEST_F(TensorAhwbGpuTest,
+       TestGetOpenGlBufferReadViewCpuWriteAhwbWriteThenCpuRead) {
+  constexpr size_t kNumElements = 20;
+  std::vector<float> reference = CreateReferenceData(kNumElements);
+
+  Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}));
+  {
+    // Allocate cpu_buffer_ first with zeroes.
+    float* cpu_ptr = tensor.GetCpuWriteView().buffer<float>();
+    ASSERT_NE(cpu_ptr, nullptr);
+    std::fill_n(cpu_ptr, kNumElements, 0.0f);
+  }
+  {
+    // Overwrite tensor via AHardwareBufferWriteView.
+    auto view = tensor.GetAHardwareBufferWriteView();
+    ASSERT_NE(view.handle(), nullptr);
+    if (__builtin_available(android 26, *)) {
+      void* ptr = nullptr;
+      ASSERT_EQ(AHardwareBuffer_lock(view.handle(),
+                                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1,
+                                     nullptr, &ptr),
+                0);
+      std::memcpy(ptr, reference.data(), kNumElements * sizeof(float));
+      ASSERT_EQ(AHardwareBuffer_unlock(view.handle(), nullptr), 0);
+    }
+    view.SetWritingFinishedFD(-1, [](bool) { return true; });
+  }
+  {
+    // The CPU read is served from the AHWB and sets kValidCpu.
+    auto view = tensor.GetCpuReadView();
+    EXPECT_THAT(absl::Span<const float>(view.buffer<float>(), kNumElements),
+                testing::Pointwise(testing::FloatEq(), reference));
+  }
+
+  RunInGlContext([&] {
+    auto ssbo_view = tensor.GetOpenGlBufferReadView();
+    ASSERT_NE(ssbo_view.name(), 0);
+
+    std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
+// A CPU write after the AHWB was allocated goes into the AHWB while a stale
+// host buffer from an earlier CPU write is still allocated. If the AHWB -> SSBO
+// binding fails, the SSBO must still be filled from the AHWB, not the stale
+// buffer.
+TEST_F(TensorAhwbGpuTest,
+       TestGetOpenGlBufferReadViewCpuWriteAhwbWriteThenCpuWrite) {
+  constexpr size_t kNumElements = 20;
+  std::vector<float> reference = CreateReferenceData(kNumElements);
+
+  Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}));
+  {
+    // Allocate cpu_buffer_ first with zeroes.
+    float* cpu_ptr = tensor.GetCpuWriteView().buffer<float>();
+    ASSERT_NE(cpu_ptr, nullptr);
+    std::fill_n(cpu_ptr, kNumElements, 0.0f);
+  }
+  {
+    // Allocate the AHWB.
+    auto view = tensor.GetAHardwareBufferWriteView();
+    ASSERT_NE(view.handle(), nullptr);
+    view.SetWritingFinishedFD(-1, [](bool) { return true; });
+  }
+  {
+    // The CPU write goes into the AHWB.
+    absl::c_copy(reference, tensor.GetCpuWriteView().buffer<float>());
+  }
+
+  RunInGlContext([&] {
+    auto ssbo_view = tensor.GetOpenGlBufferReadView();
+    ASSERT_NE(ssbo_view.name(), 0);
+
+    std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
 TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewAhwbFromGpu) {
   constexpr size_t kNumElements = 20;
   std::vector<float> reference = CreateReferenceData(kNumElements);
@@ -288,6 +460,103 @@ TEST_F(TensorAhwbGpuTest, TestGetOpenGlBufferReadViewAhwbFromGpu) {
     ASSERT_NE(ssbo_view.ssbo_read_, nullptr);
 
     std::vector<float> output = ReadGlBufferView(ssbo_view, kNumElements);
+    EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
+  });
+}
+
+TEST_F(TensorAhwbGpuTest, TestPreferAhwbCpuWriteThenGlBufferRead) {
+  constexpr size_t kNumElements = 20;
+  MemoryManager memory_manager(kDefaultMultiPoolOptions, /*prefer_ahwb=*/true);
+
+  for (int n = 0; n < 2; ++n) {
+    Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}),
+                  &memory_manager);
+    {
+      auto view = tensor.GetCpuWriteView();
+      EXPECT_NE(view.buffer<float>(), nullptr);
+    }
+
+    // Due to Black Voodoo Magic in the Tensor class, the second time a write
+    // view is requested (even for a different instance) an AHWB is used that
+    // avoids the copy.
+    bool expect_ahwb = n == 1;
+    EXPECT_EQ(tensor.ready_as_ahwb(), expect_ahwb);
+
+    RunInGlContext([&] {
+      auto ssbo_view = tensor.GetOpenGlBufferReadView();
+      EXPECT_NE(ssbo_view.name(), 0);
+    });
+  }
+}
+
+TEST_F(TensorAhwbGpuTest, TestPreferAhwbGlBufferWriteThenCpuRead) {
+  constexpr size_t kNumElements = 20;
+  MemoryManager memory_manager(kDefaultMultiPoolOptions, /*prefer_ahwb=*/true);
+
+  for (int n = 0; n < 2; ++n) {
+    Tensor tensor(Tensor::ElementType::kFloat32, Tensor::Shape({kNumElements}),
+                  &memory_manager);
+    RunInGlContext([&] {
+      auto ssbo_view = tensor.GetOpenGlBufferWriteView();
+      EXPECT_NE(ssbo_view.name(), 0);
+    });
+
+    // The second time an AHWB is requested (see above).
+    bool expect_ahwb = n == 1;
+    EXPECT_EQ(tensor.ready_as_ahwb(), expect_ahwb);
+
+    {
+      auto view = tensor.GetCpuReadView();
+      EXPECT_NE(view.buffer<float>(), nullptr);
+    }
+  }
+}
+
+std::vector<float> ReadGlTextureView(const Tensor::OpenGlTexture2dView& view,
+                                     int width, int height) {
+  glBindTexture(GL_TEXTURE_2D, view.name());
+
+  GLuint fbo = 0;
+  glGenFramebuffers(1, &fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         view.name(), 0);
+
+  std::vector<float> data;
+  data.resize(width * height);
+  glReadPixels(0, 0, width / 4, height, GL_RGBA, GL_FLOAT, data.data());
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDeleteFramebuffers(1, &fbo);
+  return data;
+}
+
+TEST_F(TensorAhwbGpuTest, TestGetOpenGlTextureReadViewAhwbFromCpu) {
+  constexpr size_t kWidth = 20;
+  constexpr size_t kHeight = 10;
+  // Tensor uses RGBA as OpenGL format. Ensure all 4 channels are filled for
+  // convenience.
+  ASSERT_EQ(kWidth % 4, 0);
+  std::vector<float> reference = CreateReferenceData(kWidth * kHeight);
+
+  Tensor tensor(Tensor::ElementType::kFloat32,
+                Tensor::Shape({kHeight, kWidth}));
+  {
+    // Make tensor to allocate ahwb and make sure view is destroyed.
+    ASSERT_NE(tensor.GetAHardwareBufferWriteView().handle(), nullptr);
+  }
+  {
+    // Populate tensor on CPU and make sure view is destroyed
+    absl::c_copy(reference, tensor.GetCpuWriteView().buffer<float>());
+  }
+
+  RunInGlContext([&] {
+    // Triggers conversion to GL texture.
+    auto texture_view = tensor.GetOpenGlTexture2dReadView();
+    ASSERT_NE(texture_view.name(), 0);
+
+    std::vector<float> output =
+        ReadGlTextureView(texture_view, kWidth, kHeight);
     EXPECT_THAT(output, testing::Pointwise(testing::FloatEq(), reference));
   });
 }

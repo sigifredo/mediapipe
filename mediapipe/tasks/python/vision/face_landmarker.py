@@ -46,7 +46,11 @@ _LiveStreamPacket = async_result_dispatcher.LiveStreamPacket
 
 
 class Blendshapes(enum.IntEnum):
-  """The 52 blendshape coefficients."""
+  """The 52 blendshape coefficients.
+
+  Note: *Left and *Right blendshapes correspond to the subject's face, not the
+  viewer. Passing a horizontally mirrored image will invert these outputs.
+  """
 
   NEUTRAL = 0
   BROW_DOWN_LEFT = 1
@@ -2865,22 +2869,26 @@ class FaceLandmarksConnections:
   ]
 
 
-class FaceLandmarkerResultC(ctypes.Structure):
-  """The ctypes struct for FaceLandmarkerResult."""
+class MpFaceLandmarkerResultC(ctypes.Structure):
+  """The ctypes struct for MpFaceLandmarkerResult."""
 
   _fields_ = [
-      ('face_landmarks', ctypes.POINTER(landmark_c_lib.NormalizedLandmarksC)),
+      ('face_landmarks', ctypes.POINTER(landmark_c_lib.MpNormalizedLandmarksC)),
       ('face_landmarks_count', ctypes.c_uint32),
-      ('face_blendshapes', ctypes.POINTER(category_c_lib.CategoriesC)),
+      ('face_blendshapes', ctypes.POINTER(category_c_lib.MpCategoriesC)),
       ('face_blendshapes_count', ctypes.c_uint32),
-      ('facial_transformation_matrixes', ctypes.POINTER(matrix_c_lib.MatrixC)),
+      (
+          'facial_transformation_matrixes',
+          ctypes.POINTER(matrix_c_lib.MpMatrixC),
+      ),
       ('facial_transformation_matrixes_count', ctypes.c_uint32),
   ]
+
 
 _C_TYPES_RESULT_CALLBACK = ctypes.CFUNCTYPE(
     None,
     ctypes.c_int32,  # MpStatus
-    ctypes.POINTER(FaceLandmarkerResultC),
+    ctypes.POINTER(MpFaceLandmarkerResultC),
     ctypes.c_void_p,  # MpImage
     ctypes.c_int64,  # timestamp_ms
 )
@@ -2903,7 +2911,7 @@ class FaceLandmarkerResult:
   @classmethod
   @doc_controls.do_not_generate_docs
   def from_ctypes(
-      cls, c_struct: FaceLandmarkerResultC
+      cls, c_struct: MpFaceLandmarkerResultC
   ) -> 'FaceLandmarkerResult':
     """Creates a FaceLandmarkerResult from a ctypes struct."""
     face_landmarks = []
@@ -2930,11 +2938,11 @@ class FaceLandmarkerResult:
     return cls(face_landmarks, face_blendshapes, facial_transformation_matrixes)
 
 
-class FaceLandmarkerOptionsC(ctypes.Structure):
-  """The ctypes struct for FaceLandmarkerOptions."""
+class MpFaceLandmarkerOptionsC(ctypes.Structure):
+  """The ctypes struct for MpFaceLandmarkerOptions."""
 
   _fields_ = [
-      ('base_options', base_options_c_lib.BaseOptionsC),
+      ('base_options', base_options_c_lib.MpBaseOptionsC),
       ('running_mode', ctypes.c_int),
       ('num_faces', ctypes.c_int),
       ('min_face_detection_confidence', ctypes.c_float),
@@ -2949,7 +2957,7 @@ class FaceLandmarkerOptionsC(ctypes.Structure):
   @doc_controls.do_not_generate_docs
   def from_c_options(
       cls,
-      base_options: base_options_c_lib.BaseOptionsC,
+      base_options: base_options_c_lib.MpBaseOptionsC,
       running_mode: _RunningMode,
       num_faces: int,
       min_face_detection_confidence: float,
@@ -2958,8 +2966,8 @@ class FaceLandmarkerOptionsC(ctypes.Structure):
       output_face_blendshapes: bool,
       output_facial_transformation_matrixes: bool,
       result_callback: '_C_TYPES_RESULT_CALLBACK',
-  ) -> 'FaceLandmarkerOptionsC':
-    """Creates a FaceLandmarkerOptionsC object from the given options."""
+  ) -> 'MpFaceLandmarkerOptionsC':
+    """Creates a MpFaceLandmarkerOptionsC object from the given options."""
     return cls(
         base_options=base_options,
         running_mode=running_mode.ctype,
@@ -3022,7 +3030,7 @@ _CTYPES_SIGNATURES = (
     mediapipe_c_utils.CStatusFunction(
         'MpFaceLandmarkerCreate',
         (
-            ctypes.POINTER(FaceLandmarkerOptionsC),
+            ctypes.POINTER(MpFaceLandmarkerOptionsC),
             ctypes.POINTER(ctypes.c_void_p),
         ),
     ),
@@ -3032,9 +3040,9 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_lib.ImageProcessingOptionsC
+                image_processing_options_c_lib.MpImageProcessingOptionsC
             ),
-            ctypes.POINTER(FaceLandmarkerResultC),
+            ctypes.POINTER(MpFaceLandmarkerResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -3043,10 +3051,10 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_lib.ImageProcessingOptionsC
+                image_processing_options_c_lib.MpImageProcessingOptionsC
             ),
             ctypes.c_int64,
-            ctypes.POINTER(FaceLandmarkerResultC),
+            ctypes.POINTER(MpFaceLandmarkerResultC),
         ),
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -3055,14 +3063,14 @@ _CTYPES_SIGNATURES = (
             ctypes.c_void_p,
             ctypes.c_void_p,
             ctypes.POINTER(
-                image_processing_options_c_lib.ImageProcessingOptionsC
+                image_processing_options_c_lib.MpImageProcessingOptionsC
             ),
             ctypes.c_int64,
         ),
     ),
     mediapipe_c_utils.CFunction(
         'MpFaceLandmarkerCloseResult',
-        [ctypes.POINTER(FaceLandmarkerResultC)],
+        [ctypes.POINTER(MpFaceLandmarkerResultC)],
         None,
     ),
     mediapipe_c_utils.CStatusFunction(
@@ -3143,13 +3151,13 @@ class FaceLandmarker:
       RuntimeError: If other types of error occurred.
     """
     running_mode_lib.validate_running_mode(
-        options.running_mode, options.result_callback
+        options.running_mode, options.result_callback  # pyrefly: ignore[bad-argument-type]
     )
 
     lib = mediapipe_c_bindings_lib.load_shared_library(_CTYPES_SIGNATURES)
 
     def convert_result(
-        c_result_ptr: ctypes.POINTER(FaceLandmarkerResultC),
+        c_result_ptr: ctypes.POINTER(MpFaceLandmarkerResultC),  # pyrefly: ignore[invalid-annotation]
         image_ptr: ctypes.c_void_p,
         timestamp_ms: int,
     ) -> Tuple[FaceLandmarkerResult, image_lib.Image, int]:
@@ -3162,7 +3170,7 @@ class FaceLandmarker:
     c_callback = dispatcher.wrap_callback(
         options.result_callback, _C_TYPES_RESULT_CALLBACK
     )
-    options_c = FaceLandmarkerOptionsC.from_c_options(
+    options_c = MpFaceLandmarkerOptionsC.from_c_options(
         base_options=options.base_options.to_ctypes(),
         running_mode=options.running_mode,
         num_faces=options.num_faces,
@@ -3175,7 +3183,7 @@ class FaceLandmarker:
     )
 
     landmarker = ctypes.c_void_p()
-    lib.MpFaceLandmarkerCreate(
+    lib.MpFaceLandmarkerCreate(  # pyrefly: ignore[missing-attribute]
         ctypes.byref(options_c), ctypes.byref(landmarker)
     )
     return FaceLandmarker(
@@ -3204,14 +3212,14 @@ class FaceLandmarker:
       RuntimeError: If face landmark detection failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    result_c = FaceLandmarkerResultC()
+    result_c = MpFaceLandmarkerResultC()
 
     c_image_processing_options = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpFaceLandmarkerDetectImage(
+    self._lib.MpFaceLandmarkerDetectImage(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -3220,7 +3228,7 @@ class FaceLandmarker:
     try:
       result = FaceLandmarkerResult.from_ctypes(result_c)
     finally:
-      self._lib.MpFaceLandmarkerCloseResult(ctypes.byref(result_c))
+      self._lib.MpFaceLandmarkerCloseResult(ctypes.byref(result_c))  # pyrefly: ignore[missing-attribute]
     return result
 
   def detect_for_video(
@@ -3252,13 +3260,13 @@ class FaceLandmarker:
       RuntimeError: If face landmarker detection failed to run.
     """
     c_image = image._image_ptr  # pylint: disable=protected-access
-    result_c = FaceLandmarkerResultC()
+    result_c = MpFaceLandmarkerResultC()
     c_image_processing_options = (
         ctypes.byref(image_processing_options.to_ctypes())
         if image_processing_options
         else None
     )
-    self._lib.MpFaceLandmarkerDetectForVideo(
+    self._lib.MpFaceLandmarkerDetectForVideo(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -3268,7 +3276,7 @@ class FaceLandmarker:
     try:
       py_result = FaceLandmarkerResult.from_ctypes(result_c)
     finally:
-      self._lib.MpFaceLandmarkerCloseResult(ctypes.byref(result_c))
+      self._lib.MpFaceLandmarkerCloseResult(ctypes.byref(result_c))  # pyrefly: ignore[missing-attribute]
     return py_result
 
   def detect_async(
@@ -3314,7 +3322,7 @@ class FaceLandmarker:
         if image_processing_options
         else None
     )
-    self._lib.MpFaceLandmarkerDetectAsync(
+    self._lib.MpFaceLandmarkerDetectAsync(  # pyrefly: ignore[missing-attribute]
         self._handle,
         c_image,
         c_image_processing_options,
@@ -3325,8 +3333,8 @@ class FaceLandmarker:
     """Closes the FaceLandmarker."""
     if not self._handle:
       return
-    self._lib.MpFaceLandmarkerClose(self._handle)
-    self._handle = None
+    self._lib.MpFaceLandmarkerClose(self._handle)  # pyrefly: ignore[missing-attribute]
+    self._handle = None  # pyrefly: ignore[bad-assignment]
     self._dispatcher.close()
     self._lib.close()
 

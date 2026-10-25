@@ -42,6 +42,7 @@ limitations under the License.
 #include "mediapipe/tasks/cc/core/mediapipe_builtin_op_resolver.h"
 #include "mediapipe/tasks/cc/core/proto/base_options.pb.h"
 #include "mediapipe/tasks/cc/core/proto/external_file.pb.h"
+#include "mediapipe/tasks/cc/core/running_mode.h"
 #include "mediapipe/tasks/cc/core/task_runner.h"
 #include "mediapipe/tasks/cc/core/utils.h"
 #include "mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarks_connections.h"
@@ -145,7 +146,7 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
                                   hand_roi_refinement_options);
   HolisticHandTrackingRequest request;
   request.landmarks = true;
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       HolisticHandTrackingOutput left_hand_result,
       TrackHolisticHand(
           image, pose_landmarks, pose_world_landmarks,
@@ -158,7 +159,7 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
               /*index_idx=*/
               static_cast<int>(pose_landmarker::PoseLandmarkName::kLeftIndex1)},
           request, graph));
-  MP_ASSIGN_OR_RETURN(
+  ABSL_ASSIGN_OR_RETURN(
       HolisticHandTrackingOutput right_hand_result,
       TrackHolisticHand(
           image, pose_landmarks, pose_world_landmarks,
@@ -202,7 +203,10 @@ absl::StatusOr<std::unique_ptr<tasks::core::TaskRunner>> CreateTaskRunner() {
   core::FixGraphBackEdges(config);
 
   return TaskRunner::Create(
-      config, std::make_unique<core::MediaPipeBuiltinOpResolver>());
+      {.config = config,
+       .task_name = "holistic_hand_tracking_test",
+       .task_running_mode = core::RunningMode::kImage,
+       .op_resolver = std::make_unique<core::MediaPipeBuiltinOpResolver>()});
 }
 
 class HolisticHandTrackingTest : public ::testing::Test {};

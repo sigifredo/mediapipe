@@ -1,4 +1,4 @@
-# Copyright 2023 The MediaPipe Authors.
+# Copyright 2026 The MediaPipe Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,115 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
 
-INTERACTIVE_SEGMENTER_DEPS = [
-    "@com_google_absl//absl/log",
-    "@com_google_absl//absl/log:absl_check",
-    "@com_google_absl//absl/status",
-    "@com_google_absl//absl/status:statusor",
-    "//mediapipe/framework/formats:image",
-    "//mediapipe/framework/formats:image_frame",
-    "//mediapipe/tasks/c/components/containers:keypoint",
-    "//mediapipe/tasks/c/core:base_options",
-    "//mediapipe/tasks/c/core:base_options_converter",
-    "//mediapipe/tasks/c/core:mp_status",
-    "//mediapipe/tasks/c/core:mp_status_converter",
-    "//mediapipe/tasks/c/core:common",
-    "//mediapipe/tasks/c/vision/core:image",
-    "//mediapipe/tasks/c/vision/core:image_frame_util",
-    "//mediapipe/tasks/c/vision/core:image_processing_options",
-    "//mediapipe/tasks/c/vision/core:image_processing_options_converter",
-    "//mediapipe/tasks/c/vision/image_segmenter:image_segmenter_result",
-    "//mediapipe/tasks/c/vision/image_segmenter:image_segmenter_result_converter",
-    "//mediapipe/tasks/cc/components/containers:keypoint",
-    "//mediapipe/tasks/cc/vision/core:image_processing_options",
-    "//mediapipe/tasks/cc/vision/interactive_segmenter",
-    "//mediapipe/tasks/cc/vision/utils:image_utils",
-]
-
+# The C API of the interactive segmenter. Only the header is open sourced; the
+# implementation is internal and linked into the prebuilt C API libraries.
 cc_library(
-    name = "interactive_segmenter_lib",
-    srcs = ["interactive_segmenter.cc"],
-    hdrs = ["interactive_segmenter.h"],
-    visibility = ["//visibility:public"],
-    deps = INTERACTIVE_SEGMENTER_DEPS,
-)
-
-cc_library(
-    name = "interactive_segmenter_c_lib",
-    srcs = ["interactive_segmenter.cc"],
+    name = "interactive_segmenter_hdr",
     hdrs = ["interactive_segmenter.h"],
     visibility = ["//mediapipe/tasks/c:__subpackages__"],
-    deps = INTERACTIVE_SEGMENTER_DEPS,
-    alwayslink = 1,
-)
-
-cc_test(
-    name = "interactive_segmenter_test",
-    srcs = ["interactive_segmenter_test.cc"],
-    data = [
-        "//mediapipe/framework/formats:image_frame_opencv",
-        "//mediapipe/framework/port:opencv_core",
-        "//mediapipe/framework/port:opencv_imgproc",
-        "//mediapipe/tasks/testdata/vision:test_images",
-        "//mediapipe/tasks/testdata/vision:test_models",
-    ],
-    linkstatic = 1,
     deps = [
-        ":interactive_segmenter_lib",
-        "//mediapipe/framework/deps:file_path",
-        "//mediapipe/framework/port:gtest_main",
-        "//mediapipe/framework/port:status_matchers",
-        "//mediapipe/tasks/c/components/containers:keypoint",
+        "//mediapipe/tasks/c/core:base_options",
         "//mediapipe/tasks/c/core:common",
         "//mediapipe/tasks/c/core:mp_status",
-        "//mediapipe/tasks/c/test:test_utils",
         "//mediapipe/tasks/c/vision/core:image",
-        "//mediapipe/tasks/c/vision/core:image_processing_options",
-        "//mediapipe/tasks/c/vision/core:image_test_util",
-        "//mediapipe/tasks/c/vision/image_segmenter:image_segmenter_result",
-        "//mediapipe/tasks/cc/vision/utils:image_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
     ],
-)
-
-# bazel build -c opt --linkopt -s --strip always --define MEDIAPIPE_DISABLE_GPU=1 \
-# //mediapipe/tasks/c/vision/interactive_segmenter:libinteractive_segmenter.so
-cc_binary(
-    name = "libinteractive_segmenter.so",
-    linkopts = [
-        "-Wl,-soname=libinteractive_segmenter.so",
-        "-fvisibility=hidden",
-    ],
-    linkshared = True,
-    tags = [
-        "manual",
-        "nobuilder",
-        "notap",
-    ],
-    deps = [":interactive_segmenter_lib"],
-)
-
-# bazel build --config darwin_arm64 -c opt --strip always --define MEDIAPIPE_DISABLE_GPU=1 \
-# //mediapipe/tasks/c/vision/interactive_segmenter:libinteractive_segmenter.dylib
-cc_binary(
-    name = "libinteractive_segmenter.dylib",
-    linkopts = [
-        "-Wl,-install_name,libinteractive_segmenter.dylib",
-        "-fvisibility=hidden",
-    ],
-    linkshared = True,
-    tags = [
-        "manual",
-        "nobuilder",
-        "notap",
-    ],
-    deps = [":interactive_segmenter_lib"],
 )

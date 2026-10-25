@@ -180,6 +180,22 @@ cc_library(
 )
 
 cc_library(
+    name = "endian",
+    hdrs = ["endian.h"],
+    deps = ["@com_google_absl//absl/base:config"],
+)
+
+cc_test(
+    name = "endian_test",
+    srcs = ["endian_test.cc"],
+    deps = [
+        ":endian",
+        "//mediapipe/framework/port:gtest_main",
+        "@com_google_absl//absl/base:config",
+    ],
+)
+
+cc_library(
     name = "image_resizer",
     hdrs = ["image_resizer.h"],
     deps = [
@@ -351,8 +367,10 @@ cc_library(
     # Use this library through "mediapipe/framework/port:gtest_main".
     visibility = ["//mediapipe/framework/port:__pkg__"],
     deps = [
+        ":status",
         "//mediapipe/framework/port:status",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_builder",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
