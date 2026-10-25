@@ -68,10 +68,17 @@ LoadedEngine::~LoadedEngine()
 
 std::unique_ptr<LoadedEngine> LoadedEngine::load(const std::string &device, std::string &error)
 {
-    const std::string path = LibraryDirectory() + "/" + LibraryFileName(device);
+    std::string path = LibraryDirectory() + "/" + LibraryFileName(device);
 
 #ifdef _WIN32
-    HMODULE lib = LoadLibraryA(path.c_str());
+    // LOAD_LIBRARY_SEARCH_* exige una ruta absoluta con separadores de Windows.
+    for (char &c : path)
+        if (c == '/')
+            c = '\\';
+
+    // LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: las dependencias del motor (OpenCV) se buscan junto a él y no
+    // junto al ejecutable del consumidor.
+    HMODULE lib = LoadLibraryExA(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 
     if (!lib)
     {

@@ -1,0 +1,26 @@
+diff --git a/src/google/protobuf/json/internal/untyped_message.h b/src/google/protobuf/json/internal/untyped_message.h
+index 6f86c0e..9e6e210 100644
+--- a/src/google/protobuf/json/internal/untyped_message.h
++++ b/src/google/protobuf/json/internal/untyped_message.h
+@@ -21,6 +21,7 @@
+ #include <vector>
+ 
+ #include "google/protobuf/type.pb.h"
++#include <map>
+ #include "absl/container/flat_hash_map.h"
+ #include "absl/status/status.h"
+ #include "absl/strings/str_format.h"
+@@ -230,7 +231,13 @@ class UntypedMessage final {
+   absl::Status InsertField(const ResolverPool::Field& field, T&& value);
+ 
+   const ResolverPool::Message* desc_;
++#ifdef _MSC_VER
++  // plexus-patch: el STL de MSVC 14.44 instancia variant<..., UntypedMessage> al declarar
++  // flat_hash_map (IsOwner) con la clase aún incompleta. std::map no lo exige.
++  std::map<int32_t, Value> fields_;
++#else
+   absl::flat_hash_map<int32_t, Value> fields_;
++#endif
+ };
+ }  // namespace json_internal
+ }  // namespace protobuf

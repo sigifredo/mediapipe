@@ -20,6 +20,10 @@ El código propio (sin equivalente upstream) está en `mediapipe/plexus/` y no g
 | `third_party/opencv_linux.BUILD` | Descomentadas las rutas OpenCV 4 x86_64 y `highgui` desactivado | OpenCV del sistema (Debian) |
 | `third_party/opencv_macos.BUILD`, `WORKSPACE` (`macos_opencv`) | `PREFIX` `opt/opencv@4`, cabeceras en `include/opencv4` y ruta `/opt/homebrew` | OpenCV 4 de Homebrew en Apple Silicon |
 | `third_party/opencv_windows.BUILD` | `OPENCV_VERSION` 4120 y `vc16` | OpenCV 4.12.0 en `C:\opencv\build` |
+| `.bazelrc` (`build:windows`) | `--define=protobuf_allow_msvc=true` y `--override_repository` de `rules_swift` a `third_party/windows_swift_stub` | protobuf 6.31 se niega a compilar con MSVC sin el define; el toolchain de `rules_swift` exige `swiftc.exe` en Windows aunque solo se use en iOS |
+| `MODULE.bazel` (`archive_override` de protobuf), `third_party/protobuf_msvc_untyped_message.diff` | Parche que usa `std::map` en `UntypedMessage::fields_` solo con `_MSC_VER` | MSVC 14.44 no compila `flat_hash_map<int, variant<..., UntypedMessage>>` con la clase incompleta. En el resto de compiladores el código es el mismo |
+| `mediapipe/framework/legacy_calculator_support.h` | `ABSL_CONST_INIT` se omite con MSVC (no clang-cl) | Se expande a `constinit` y no coincide con la definición del `.cc` |
+| `mediapipe/framework/port/advanced_proto_inc.h` | `gzip_stream.h` solo si no es `_WIN32` | protobuf en Windows se compila sin zlib; MediaPipe no usa gzip |
 
 ## Biblioteca de landmarks (`mediapipe/plexus/landmarks/`)
 
@@ -69,7 +73,7 @@ Variables de entorno: `PLEXUS_LANDMARKS_DEVICE`, `PLEXUS_LANDMARKS_LIBDIR`, `PLE
 - `Auto` prueba la GPU y cae a CPU si falta el motor o `libEGL`/`libGLESv2`, si no hay contexto GLES, o si el grafo no inicia. Si la GPU falla durante la ejecución, reinicia el grafo en CPU (no llamar a `processFrame` desde el callback).
 - `Gpu` explícito no hace fallback: falla si no puede usar la GPU.
 - Los grafos de GPU son los estándar de MediaPipe (reciben GpuBuffer). El motor renombra la entrada a `<input>_frame` e inserta `ImageFrameToGpuBufferCalculator`.
-- Windows: solo CPU (MediaPipe desactiva la GPU allí). La carga por `LoadLibrary` está escrita y sin probar.
+- Windows: solo CPU (MediaPipe desactiva la GPU allí). La fachada carga el motor con `LoadLibraryEx` y `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR`, para que OpenCV se resuelva junto al motor y no junto al ejecutable del consumidor.
 
 ### Restricciones de build
 
@@ -82,6 +86,16 @@ Variables de entorno: `PLEXUS_LANDMARKS_DEVICE`, `PLEXUS_LANDMARKS_LIBDIR`, `PLE
 - `./build_plexus.sh` detecta Darwin: usa `--config=macos`, genera `libplexus_landmarks.dylib` y `libplexus_landmarks_cpu.dylib` (sin motor GPU, no hay EGL) y corrige su install name con `install_name_tool`. Requiere `brew install opencv@4`.
 - El motor exporta solo `plexusLandmarksCreateEngine` y `plexusLandmarksDestroyEngine` (`engine_exports_macos.lds`). Sin eso los símbolos débiles de protobuf y abseil del motor se fusionan con los de Homebrew, que llegan por OpenCV, y el proceso falla con segfault al cargar el motor.
 - `./test_landmarks.sh` en macOS (usar `CXX=clang++` si no hay `g++` real) ejecuta solo los escenarios de CPU y de ausencia de la biblioteca GPU.
+
+### Windows (MSVC, release)
+
+- `.\build_plexus.ps1` compila con `-c opt --config=windows` y genera en `dist\`: `plexus_landmarks.dll` y `plexus_landmarks.lib` (fachada), `plexus_landmarks_cpu.dll` (motor), `opencv_world4120.dll` y `mediapipe\modules\...`. El consumidor enlaza `plexus_landmarks.lib` y despliega todo `dist\`.
+- Requiere Visual Studio 2022 con C++ (probado con MSVC 14.44), OpenCV 4.12 en `C:\opencv\build` y el Bazel de `.bazelversion` en `%USERPROFILE%\.bazel\bin\bazel-7.7.0.exe`.
+- Sin JDK en el sistema, `rules_java` 7.10 genera una etiqueta inexistente (`@rules_java//tools/jdk`) y el análisis falla. El script usa el JDK embebido de Bazel como `JAVA_HOME`.
+- Bazel nombra los targets `libplexus_landmarks*.so` aunque sean DLL, y el `.lib` que genera apunta a ese nombre. El script regenera el `.lib` desde los exports de la DLL.
+- El motor se compila con `PLEXUS_LANDMARKS_BUILDING_DLL` en Windows: los tipos de resultado son `PLEXUS_LANDMARKS_API` y sin eso el motor los importaría de la fachada.
+- `.\test_landmarks.ps1` ejecuta los escenarios de CPU y de ausencia de la biblioteca GPU.
+- La primera compilación completa tarda unos 20 minutos.
 
 ### Pruebas
 
@@ -112,4 +126,4 @@ Aviso conocido en GPU: `Tensors are designed for single writes` (`tensor.cc`) sa
 
 ## Estado de verificación
 
-Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. En macOS (arm64) compila y pasa los escenarios de CPU con frames sintéticos. Pendiente: probar con cámara en vivo, Windows.
+Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. En macOS (arm64) compila y pasa los escenarios de CPU con frames sintéticos. En Windows (MSVC 14.44, release) compila y pasa los escenarios de CPU con frames sintéticos. Pendiente: probar con cámara en vivo y con una imagen real en Windows.

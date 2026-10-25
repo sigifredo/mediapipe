@@ -26,6 +26,7 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "LICENSE",
+    "protobuf_msvc_untyped_message.diff",
     "requirements_lock.txt",
     "requirements_lock_3_10.txt",
     "requirements_lock_3_11.txt",

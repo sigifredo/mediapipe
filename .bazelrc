@@ -142,3 +142,9 @@ try-import %workspace%/.configure.bazelrc
 
 # This bazelrc file can be used for user-specific custom build settings.
 try-import %workspace%/.user.bazelrc
+
+# plexus-patch: rules_swift registra un toolchain que en Windows exige swiftc.exe aunque no se use
+# (solo es necesario para iOS). Se sustituye por un repositorio vacío.
+build:windows --override_repository=rules_swift~~non_module_deps~build_bazel_rules_swift_local_config=%workspace%/third_party/windows_swift_stub
+# plexus-patch: protobuf aborta con MSVC + Bazel salvo que se permita explícitamente.
+build:windows --define=protobuf_allow_msvc=true

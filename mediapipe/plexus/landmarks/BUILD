@@ -79,6 +79,13 @@ cc_binary(
         "@platforms//os:macos": ["engine_exports_macos.lds"],
         "//conditions:default": [],
     }),
+    # Windows: los tipos de resultado (HandTrackingResult...) son PLEXUS_LANDMARKS_API y sus miembros
+    # implícitos se instancian en cada módulo. Sin esto el motor los importa (dllimport) de la
+    # fachada, que no los exporta hacia él, y el enlace falla.
+    defines = select({
+        "@platforms//os:windows": ["PLEXUS_LANDMARKS_BUILDING_DLL"],
+        "//conditions:default": [],
+    }),
     includes = ["."],
     # macOS: sin esto los símbolos débiles de protobuf/abseil del motor se fusionan con los de
     # Homebrew (que llegan por OpenCV/ffmpeg) y, al diferir las versiones, el proceso se corrompe.

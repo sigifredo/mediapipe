@@ -64,6 +64,9 @@ archive_override(
     module_name = "protobuf",
     strip_prefix = "protobuf-6.31.1",
     urls = ["https://github.com/protocolbuffers/protobuf/archive/refs/tags/v6.31.1.zip"],
+    # plexus-patch: MSVC 14.44 no compila json/internal/untyped_message.h (solo cambia con _MSC_VER).
+    patch_strip = 1,
+    patches = ["//third_party:protobuf_msvc_untyped_message.diff"],
 )
 
 python = use_extension("@rules_python_bzlmod//python/extensions:python.bzl", "python")
