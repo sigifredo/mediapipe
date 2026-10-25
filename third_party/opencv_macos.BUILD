@@ -35,7 +35,8 @@ exports_files(["LICENSE"])
 # "include/opencv4/opencv2/**/*.h*" and the include prefix needs to be set to
 # "include/opencv4".
 
-PREFIX = "opt/opencv@3"
+# plexus-patch: OpenCV 4 de Homebrew en Apple Silicon (/opt/homebrew).
+PREFIX = "opt/opencv@4"
 
 cc_library(
     name = "opencv",
@@ -51,8 +52,8 @@ cc_library(
             paths.join(PREFIX, "lib/libopencv_videoio.dylib"),
         ],
     ),
-    hdrs = glob([paths.join(PREFIX, "include/opencv2/**/*.h*")]),
-    includes = [paths.join(PREFIX, "include/")],
+    hdrs = glob([paths.join(PREFIX, "include/opencv4/opencv2/**/*.h*")]),
+    includes = [paths.join(PREFIX, "include/opencv4/")],
     linkstatic = 1,
     visibility = ["//visibility:public"],
 )

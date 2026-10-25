@@ -75,7 +75,17 @@ cc_binary(
         "backend/EngineApi.hpp",
         "backend/MediaPipeEngine.cpp",
     ],
+    additional_linker_inputs = select({
+        "@platforms//os:macos": ["engine_exports_macos.lds"],
+        "//conditions:default": [],
+    }),
     includes = ["."],
+    # macOS: sin esto los símbolos débiles de protobuf/abseil del motor se fusionan con los de
+    # Homebrew (que llegan por OpenCV/ffmpeg) y, al diferir las versiones, el proceso se corrompe.
+    linkopts = select({
+        "@platforms//os:macos": ["-Wl,-exported_symbols_list,$(location engine_exports_macos.lds)"],
+        "//conditions:default": [],
+    }),
     linkshared = True,
     deps = [
         "//mediapipe/framework:calculator_framework",

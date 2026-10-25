@@ -18,6 +18,7 @@ El código propio (sin equivalente upstream) está en `mediapipe/plexus/` y no g
 | `mediapipe/framework/api3/calculator_context.h` | Se elimina `int&... DoNotSpecify` en `VisitPacket*OrDie` | Compatibilidad MSVC |
 | `mediapipe/framework/port/opencv_video_inc.h` | `&& !defined(_WIN32)` en el include de `optflow` | Compatibilidad Windows (optflow no se compila allí) |
 | `third_party/opencv_linux.BUILD` | Descomentadas las rutas OpenCV 4 x86_64 y `highgui` desactivado | OpenCV del sistema (Debian) |
+| `third_party/opencv_macos.BUILD`, `WORKSPACE` (`macos_opencv`) | `PREFIX` `opt/opencv@4`, cabeceras en `include/opencv4` y ruta `/opt/homebrew` | OpenCV 4 de Homebrew en Apple Silicon |
 | `third_party/opencv_windows.BUILD` | `OPENCV_VERSION` 4120 y `vc16` | OpenCV 4.12.0 en `C:\opencv\build` |
 
 ## Biblioteca de landmarks (`mediapipe/plexus/landmarks/`)
@@ -76,6 +77,12 @@ Variables de entorno: `PLEXUS_LANDMARKS_DEVICE`, `PLEXUS_LANDMARKS_LIBDIR`, `PLE
 - CPU y GPU usan `--platform_suffix` distinto (`-cpu`, `-gpu`) para conservar ambas cachés de Bazel. Los directorios de salida son `bazel-out/k8-opt--cpu` y `k8-opt--gpu`.
 - Las bibliotecas de motor nunca se descargan (`dlclose`).
 
+### macOS (Apple Silicon)
+
+- `./build_plexus.sh` detecta Darwin: usa `--config=macos`, genera `libplexus_landmarks.dylib` y `libplexus_landmarks_cpu.dylib` (sin motor GPU, no hay EGL) y corrige su install name con `install_name_tool`. Requiere `brew install opencv@4`.
+- El motor exporta solo `plexusLandmarksCreateEngine` y `plexusLandmarksDestroyEngine` (`engine_exports_macos.lds`). Sin eso los símbolos débiles de protobuf y abseil del motor se fusionan con los de Homebrew, que llegan por OpenCV, y el proceso falla con segfault al cargar el motor.
+- `./test_landmarks.sh` en macOS (usar `CXX=clang++` si no hay `g++` real) ejecuta solo los escenarios de CPU y de ausencia de la biblioteca GPU.
+
 ### Pruebas
 
 `./test_landmarks.sh` (tras `build_plexus.sh all`) ejecuta 16 escenarios de selección y fallback sobre frames sintéticos. `landmarks_bench` mide latencia por frame:
@@ -105,4 +112,4 @@ Aviso conocido en GPU: `Tensors are designed for single writes` (`tensor.cc`) sa
 
 ## Estado de verificación
 
-Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. Pendiente: probar con cámara en vivo, Windows.
+Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. En macOS (arm64) compila y pasa los escenarios de CPU con frames sintéticos. Pendiente: probar con cámara en vivo, Windows.

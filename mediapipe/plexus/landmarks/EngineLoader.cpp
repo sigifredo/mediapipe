@@ -51,6 +51,8 @@ namespace
     {
 #ifdef _WIN32
         return "plexus_landmarks_" + device + ".dll";
+#elif defined(__APPLE__)
+        return "libplexus_landmarks_" + device + ".dylib";
 #else
         return "libplexus_landmarks_" + device + ".so";
 #endif
