@@ -1,0 +1,12 @@
+# Seguimiento de cuerpo sin renderizado, para BodyTracker (dispositivo gpu).
+# El stream de entrada es GpuBuffer: libplexus_landmarks inserta la conversión desde ImageFrame.
+# Uso: graphPath = ".../body_{device}.pbtxt"
+
+input_stream: "input_video"
+
+node {
+  calculator: "PoseLandmarkGpu"
+  input_stream: "IMAGE:input_video"
+  output_stream: "LANDMARKS:pose_landmarks"
+  output_stream: "WORLD_LANDMARKS:pose_world_landmarks"
+}

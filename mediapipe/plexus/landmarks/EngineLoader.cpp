@@ -1,4 +1,4 @@
-#include "BackendLoader.hpp"
+#include "EngineLoader.hpp"
 
 #include <cstdlib>
 
@@ -8,13 +8,16 @@
 #include <dlfcn.h>
 #endif
 
+namespace plexus::landmarks
+{
+
 namespace
 {
 
-/// Directorio donde está esta biblioteca (la fachada), o PLEXUS_TRACKER_LIBDIR si se define.
+/// Directorio donde está esta biblioteca (la fachada), o PLEXUS_LANDMARKS_LIBDIR si se define.
 std::string LibraryDirectory()
 {
-    if (const char *override = std::getenv("PLEXUS_TRACKER_LIBDIR"))
+    if (const char *override = std::getenv("PLEXUS_LANDMARKS_LIBDIR"))
         return override;
 
 #ifdef _WIN32
@@ -41,26 +44,26 @@ std::string LibraryDirectory()
 #endif
 }
 
-std::string LibraryFileName(const std::string &kind)
+std::string LibraryFileName(const std::string &device)
 {
 #ifdef _WIN32
-    return "hand_tracker_" + kind + ".dll";
+    return "plexus_landmarks_" + device + ".dll";
 #else
-    return "libhand_tracker_" + kind + ".so";
+    return "libplexus_landmarks_" + device + ".so";
 #endif
 }
 
 } // namespace
 
-LoadedBackend::~LoadedBackend()
+LoadedEngine::~LoadedEngine()
 {
-    if (backend_ && destroy_)
-        destroy_(backend_);
+    if (engine_ && destroy_)
+        destroy_(engine_);
 }
 
-std::unique_ptr<LoadedBackend> LoadedBackend::load(const std::string &kind, std::string &error)
+std::unique_ptr<LoadedEngine> LoadedEngine::load(const std::string &device, std::string &error)
 {
-    const std::string path = LibraryDirectory() + "/" + LibraryFileName(kind);
+    const std::string path = LibraryDirectory() + "/" + LibraryFileName(device);
 
 #ifdef _WIN32
     HMODULE lib = LoadLibraryA(path.c_str());
@@ -71,8 +74,8 @@ std::unique_ptr<LoadedBackend> LoadedBackend::load(const std::string &kind, std:
         return nullptr;
     }
 
-    auto create = reinterpret_cast<PlexusCreateBackendFn>(GetProcAddress(lib, PLEXUS_CREATE_BACKEND_SYMBOL));
-    auto destroy = reinterpret_cast<PlexusDestroyBackendFn>(GetProcAddress(lib, PLEXUS_DESTROY_BACKEND_SYMBOL));
+    auto create = reinterpret_cast<CreateEngineFn>(GetProcAddress(lib, PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL));
+    auto destroy = reinterpret_cast<DestroyEngineFn>(GetProcAddress(lib, PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL));
 #else
     // RTLD_NOW: si falta una dependencia del sistema (p. ej. libEGL) se falla aquí y no más tarde.
     void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -83,21 +86,23 @@ std::unique_ptr<LoadedBackend> LoadedBackend::load(const std::string &kind, std:
         return nullptr;
     }
 
-    auto create = reinterpret_cast<PlexusCreateBackendFn>(dlsym(lib, PLEXUS_CREATE_BACKEND_SYMBOL));
-    auto destroy = reinterpret_cast<PlexusDestroyBackendFn>(dlsym(lib, PLEXUS_DESTROY_BACKEND_SYMBOL));
+    auto create = reinterpret_cast<CreateEngineFn>(dlsym(lib, PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL));
+    auto destroy = reinterpret_cast<DestroyEngineFn>(dlsym(lib, PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL));
 #endif
 
     if (!create || !destroy)
     {
-        error = "la biblioteca no exporta los símbolos de backend: " + path;
+        error = "la biblioteca no exporta los símbolos de motor: " + path;
         return nullptr;
     }
 
-    std::unique_ptr<LoadedBackend> loaded(new LoadedBackend());
+    std::unique_ptr<LoadedEngine> loaded(new LoadedEngine());
 
-    loaded->backend_ = create();
+    loaded->engine_ = create();
     loaded->destroy_ = destroy;
-    loaded->kind_ = kind;
+    loaded->device_ = device;
 
     return loaded;
 }
+
+} // namespace plexus::landmarks

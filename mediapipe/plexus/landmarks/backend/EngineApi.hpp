@@ -1,27 +1,32 @@
-#ifndef BACKENDAPI_HPP
-#define BACKENDAPI_HPP
+#ifndef PLEXUS_LANDMARKS_ENGINEAPI_HPP
+#define PLEXUS_LANDMARKS_ENGINEAPI_HPP
 
-#include "../TrackerTypes.hpp"
+#include "../BodyTypes.hpp"
+#include "../Config.hpp"
+#include "../HandTypes.hpp"
 
 #include <cstdint>
 #include <functional>
 #include <string>
 
+namespace plexus::landmarks
+{
+
 /**
- * @brief Contrato entre la fachada (libhand_tracker) y los backends
- * (libhand_tracker_cpu / libhand_tracker_gpu).
+ * @brief Contrato entre la fachada (libplexus_landmarks) y los motores
+ * (libplexus_landmarks_cpu / libplexus_landmarks_gpu).
  *
- * La fachada carga un backend con dlopen y lo usa solo a través de esta
- * interfaz virtual, de modo que no necesita enlazar símbolos del backend ni
- * depender de EGL. Fachada y backends deben compilarse con el mismo toolchain.
+ * La fachada carga un motor con dlopen y lo usa solo a través de esta
+ * interfaz virtual, de modo que no necesita enlazar símbolos del motor ni
+ * depender de EGL. Fachada y motores deben compilarse con el mismo toolchain.
  */
-class IBackend
+class IEngine
 {
 public:
     using BodyCallback = std::function<void(const BodyTrackingResult &)>;
     using HandCallback = std::function<void(const HandTrackingResult &)>;
 
-    virtual ~IBackend() = default;
+    virtual ~IEngine() = default;
 
     /// Cierra el stream de entrada. Falso si no estaba abierto.
     virtual bool closeInputStream() = 0;
@@ -36,7 +41,7 @@ public:
      * @param worldLandmarkStream Stream de landmarks en metros.
      * @param callback Se invoca desde un hilo del grafo con cada resultado.
      */
-    virtual bool initializeBody(const MediaPipeTrackerConfig &config, const std::string &landmarkStream, const std::string &worldLandmarkStream, BodyCallback callback) = 0;
+    virtual bool initializeBody(const TrackerConfig &config, const std::string &landmarkStream, const std::string &worldLandmarkStream, BodyCallback callback) = 0;
 
     /**
      * @brief Inicia un grafo de manos.
@@ -46,7 +51,7 @@ public:
      * @param worldLandmarkStream Stream de landmarks en metros (vacío si no se pide).
      * @param callback Se invoca desde un hilo del grafo con cada resultado.
      */
-    virtual bool initializeHand(const MediaPipeTrackerConfig &config, const std::string &landmarkStream, const std::string &handednessStream, const std::string &worldLandmarkStream, HandCallback callback) = 0;
+    virtual bool initializeHand(const TrackerConfig &config, const std::string &landmarkStream, const std::string &handednessStream, const std::string &worldLandmarkStream, HandCallback callback) = 0;
 
     virtual bool isRunning() const = 0;
 
@@ -57,20 +62,22 @@ public:
     virtual bool waitUntilIdle() = 0;
 };
 
-/// Símbolos que exporta cada biblioteca de backend.
+} // namespace plexus::landmarks
+
+/// Símbolos que exporta cada biblioteca de motor.
 extern "C"
 {
-    typedef IBackend *(*PlexusCreateBackendFn)();
-    typedef void (*PlexusDestroyBackendFn)(IBackend *);
+    typedef plexus::landmarks::IEngine *(*CreateEngineFn)();
+    typedef void (*DestroyEngineFn)(plexus::landmarks::IEngine *);
 }
 
 #ifdef _WIN32
-#define PLEXUS_BACKEND_EXPORT __declspec(dllexport)
+#define PLEXUS_LANDMARKS_ENGINE_EXPORT __declspec(dllexport)
 #else
-#define PLEXUS_BACKEND_EXPORT __attribute__((visibility("default")))
+#define PLEXUS_LANDMARKS_ENGINE_EXPORT __attribute__((visibility("default")))
 #endif
 
-#define PLEXUS_CREATE_BACKEND_SYMBOL "plexusCreateBackend"
-#define PLEXUS_DESTROY_BACKEND_SYMBOL "plexusDestroyBackend"
+#define PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL "plexusLandmarksCreateEngine"
+#define PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL "plexusLandmarksDestroyEngine"
 
 #endif

@@ -1,12 +1,12 @@
 /**
- * @file Core.cpp
- * @brief Implementación de IBackend sobre CalculatorGraph.
+ * @file MediaPipeEngine.cpp
+ * @brief Implementación de IEngine sobre CalculatorGraph de MediaPipe.
  *
  * Se compila dos veces con el mismo código: sin MEDIAPIPE_DISABLE_GPU
- * (libhand_tracker_gpu) y con él (libhand_tracker_cpu). Ver build_plexus.sh.
+ * (libplexus_landmarks_gpu) y con él (libplexus_landmarks_cpu). Ver build_plexus.sh.
  */
 
-#include "BackendApi.hpp"
+#include "EngineApi.hpp"
 
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
@@ -35,6 +35,9 @@ ABSL_DECLARE_FLAG(std::string, resource_root_dir);
 #include <mutex>
 #include <sstream>
 
+namespace plexus::landmarks
+{
+
 namespace
 {
 
@@ -52,7 +55,7 @@ struct PartialHandResult
     bool hasLandmarks = false;
     bool hasWorldLandmarks = false;
     bool wantsWorldLandmarks = false;
-    std::vector<std::vector<WorldLandmark>> worldLandmarks;
+    std::vector<std::vector<HandWorldLandmark>> worldLandmarks;
 
     bool isComplete() const { return hasLandmarks && hasHandedness && (!wantsWorldLandmarks || hasWorldLandmarks); }
 };
@@ -82,7 +85,7 @@ std::vector<BodyLandmark> ToBodyLandmarks(const List &list)
     return landmarks;
 }
 
-/// Directorio de esta biblioteca de backend.
+/// Directorio de esta biblioteca de motor.
 std::string LibraryDirectory()
 {
 #ifdef _WIN32
@@ -112,13 +115,13 @@ std::string LibraryDirectory()
 /**
  * @brief Fija desde dónde se resuelven los modelos (`mediapipe/modules/...`).
  *
- * Prioridad: PLEXUS_TRACKER_RESOURCE_DIR; el flag resource_root_dir si ya tiene
+ * Prioridad: PLEXUS_LANDMARKS_RESOURCE_DIR; el flag resource_root_dir si ya tiene
  * valor; el directorio de la biblioteca (donde build_plexus.sh deja los
  * modelos). Si nada aplica, los modelos se buscan desde el directorio de trabajo.
  */
 void ConfigureResourceRoot()
 {
-    if (const char *env = std::getenv("PLEXUS_TRACKER_RESOURCE_DIR"))
+    if (const char *env = std::getenv("PLEXUS_LANDMARKS_RESOURCE_DIR"))
     {
         absl::SetFlag(&FLAGS_resource_root_dir, std::string(env));
         return;
@@ -136,13 +139,13 @@ void ConfigureResourceRoot()
 } // namespace
 
 /**
- * @brief Backend MediaPipe. Una instancia gestiona un grafo.
+ * @brief Motor sobre MediaPipe. Una instancia gestiona un grafo.
  */
-class Core : public IBackend
+class MediaPipeEngine : public IEngine
 {
 public:
-    Core() = default;
-    ~Core() override { stop(); }
+    MediaPipeEngine() = default;
+    ~MediaPipeEngine() override { stop(); }
 
     bool closeInputStream() override
     {
@@ -163,7 +166,7 @@ public:
 
     bool hasFailed() const override { return graph_.HasError() || injectedFault_; }
 
-    bool initializeBody(const MediaPipeTrackerConfig &config, const std::string &landmarkStream, const std::string &worldLandmarkStream, BodyCallback callback) override
+    bool initializeBody(const TrackerConfig &config, const std::string &landmarkStream, const std::string &worldLandmarkStream, BodyCallback callback) override
     {
         bodyCallback_ = std::move(callback);
 
@@ -171,7 +174,7 @@ public:
                      { return observeBody(landmarkStream, worldLandmarkStream); });
     }
 
-    bool initializeHand(const MediaPipeTrackerConfig &config, const std::string &landmarkStream, const std::string &handednessStream, const std::string &worldLandmarkStream, HandCallback callback) override
+    bool initializeHand(const TrackerConfig &config, const std::string &landmarkStream, const std::string &handednessStream, const std::string &worldLandmarkStream, HandCallback callback) override
     {
         handCallback_ = std::move(callback);
         wantsWorld_ = !worldLandmarkStream.empty();
@@ -188,7 +191,7 @@ public:
             return false;
 
 #if !MEDIAPIPE_DISABLE_GPU
-        // Inyección de fallos para probar el fallback a mitad de ejecución (test_tracker.sh).
+        // Inyección de fallos para probar el fallback a mitad de ejecución (test_landmarks.sh).
         if (faultAfterFrames_ >= 0 && ++framesSeen_ > faultAfterFrames_)
         {
             injectedFault_ = true;
@@ -369,12 +372,12 @@ private:
             const int64_t ts = packet.Timestamp().Microseconds();
             const auto &multiWorld = packet.Get<std::vector<mediapipe::LandmarkList>>();
 
-            std::vector<std::vector<WorldLandmark>> worldHands;
+            std::vector<std::vector<HandWorldLandmark>> worldHands;
             worldHands.reserve(multiWorld.size());
 
             for (const auto &hand : multiWorld)
             {
-                std::vector<WorldLandmark> landmarks;
+                std::vector<HandWorldLandmark> landmarks;
                 landmarks.reserve(hand.landmark_size());
 
                 for (const auto &lm : hand.landmark())
@@ -456,14 +459,14 @@ private:
      * @param registerObservers Registra los observers del tipo de tracker.
      */
     template <typename F>
-    bool start(const MediaPipeTrackerConfig &config, F registerObservers)
+    bool start(const TrackerConfig &config, F registerObservers)
     {
         inputStream_ = config.inputStream;
         feedStream_ = config.inputStream;
         ConfigureResourceRoot();
 
 #if !MEDIAPIPE_DISABLE_GPU
-        if (const char *fault = std::getenv("PLEXUS_TRACKER_FAULT_AFTER_FRAMES"))
+        if (const char *fault = std::getenv("PLEXUS_LANDMARKS_FAULT_AFTER_FRAMES"))
             faultAfterFrames_ = std::atoi(fault);
 #endif
 
@@ -569,9 +572,11 @@ private:
 #endif
 };
 
+} // namespace plexus::landmarks
+
 extern "C"
 {
-    PLEXUS_BACKEND_EXPORT IBackend *plexusCreateBackend() { return new Core(); }
+    PLEXUS_LANDMARKS_ENGINE_EXPORT plexus::landmarks::IEngine *plexusLandmarksCreateEngine() { return new plexus::landmarks::MediaPipeEngine(); }
 
-    PLEXUS_BACKEND_EXPORT void plexusDestroyBackend(IBackend *backend) { delete backend; }
+    PLEXUS_LANDMARKS_ENGINE_EXPORT void plexusLandmarksDestroyEngine(plexus::landmarks::IEngine *engine) { delete engine; }
 }

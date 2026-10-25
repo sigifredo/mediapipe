@@ -1,10 +1,10 @@
 /**
- * @file TrackerSmoke.cpp
- * @brief Prueba de humo de libhand_tracker: selección de backend y procesamiento de frames.
+ * @file LandmarksSmoke.cpp
+ * @brief Prueba de humo de libplexus_landmarks: selección de dispositivo y procesamiento de frames.
  *
- * Uso: tracker_smoke <hand|body> <graphPath> <auto|cpu|gpu> [frames]
- * Imprime `backend=<cpu|gpu>` y `frames_ok=<n>`. Sale con 1 si no puede iniciar.
- * No depende de MediaPipe: solo de la fachada. Ver test_tracker.sh.
+ * Uso: landmarks_smoke <hand|body> <graphPath> <auto|cpu|gpu> [frames]
+ * Imprime `device=<cpu|gpu>` y `frames_ok=<n>`. Sale con 1 si no puede iniciar.
+ * No depende de MediaPipe: solo de la fachada. Ver test_landmarks.sh.
  */
 
 #include "BodyTracker.hpp"
@@ -19,18 +19,20 @@
 #include <string>
 #include <vector>
 
+using namespace plexus::landmarks;
+
 namespace
 {
 
-TrackerBackend ParseBackend(const char *text)
+ComputeDevice ParseDevice(const char *text)
 {
     if (!std::strcmp(text, "cpu"))
-        return TrackerBackend::Cpu;
+        return ComputeDevice::Cpu;
 
     if (!std::strcmp(text, "gpu"))
-        return TrackerBackend::Gpu;
+        return ComputeDevice::Gpu;
 
-    return TrackerBackend::Auto;
+    return ComputeDevice::Auto;
 }
 
 /**
@@ -67,18 +69,18 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    const std::string kind = argv[1];
+    const std::string trackerKind = argv[1];
     const int frames = argc > 4 ? std::atoi(argv[4]) : 30;
-    MediaPipeTrackerConfig config;
+    TrackerConfig config;
 
     config.graphPath = argv[2];
-    config.backend = ParseBackend(argv[3]);
+    config.device = ParseDevice(argv[3]);
 
     std::atomic<int> results{0};
     int accepted = 0;
-    std::string backend;
+    std::string device;
 
-    if (kind == "hand")
+    if (trackerKind == "hand")
     {
         HandTracker tracker;
 
@@ -89,7 +91,7 @@ int main(int argc, char **argv)
             return 1;
 
         accepted = Feed(tracker, frames);
-        backend = tracker.backendName();
+        device = tracker.deviceName();
         tracker.stop();
     }
     else
@@ -103,11 +105,11 @@ int main(int argc, char **argv)
             return 1;
 
         accepted = Feed(tracker, frames);
-        backend = tracker.backendName();
+        device = tracker.deviceName();
         tracker.stop();
     }
 
-    printf("backend=%s frames_ok=%d/%d results=%d\n", backend.c_str(), accepted, frames, results.load());
+    printf("device=%s frames_ok=%d/%d results=%d\n", device.c_str(), accepted, frames, results.load());
 
     return accepted == frames ? 0 : 1;
 }

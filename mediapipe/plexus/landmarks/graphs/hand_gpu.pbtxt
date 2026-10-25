@@ -1,6 +1,6 @@
-# Seguimiento de manos sin renderizado, para HandTracker (backend gpu).
-# El stream de entrada es GpuBuffer: libhand_tracker inserta la conversión desde ImageFrame.
-# Uso: graphPath = ".../hand_tracking_{backend}.pbtxt"
+# Seguimiento de manos sin renderizado, para HandTracker (dispositivo gpu).
+# El stream de entrada es GpuBuffer: libplexus_landmarks inserta la conversión desde ImageFrame.
+# Uso: graphPath = ".../hand_{device}.pbtxt"
 
 input_stream: "input_video"
 

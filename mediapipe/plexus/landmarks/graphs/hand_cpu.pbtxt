@@ -1,6 +1,6 @@
-# Seguimiento de manos sin renderizado, para HandTracker (backend cpu).
+# Seguimiento de manos sin renderizado, para HandTracker (dispositivo cpu).
 # El stream de entrada es ImageFrame.
-# Uso: graphPath = ".../hand_tracking_{backend}.pbtxt"
+# Uso: graphPath = ".../hand_{device}.pbtxt"
 
 input_stream: "input_video"
 

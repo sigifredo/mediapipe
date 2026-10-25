@@ -1,5 +1,5 @@
 /**
- * @file TrackerBench.cpp
+ * @file LandmarksBench.cpp
  * @brief Benchmark headless del grafo de manos en CPU o GPU.
  *
  * Mide la latencia por frame (AddPacket hasta WaitUntilIdle) sobre un video,
@@ -28,7 +28,7 @@
 #include "mediapipe/framework/port/parse_text_proto.h"
 #include "mediapipe/framework/port/status.h"
 
-ABSL_FLAG(std::string, backend, "cpu", "Backend de inferencia: cpu o gpu.");
+ABSL_FLAG(std::string, device, "cpu", "Dispositivo de inferencia: cpu o gpu.");
 ABSL_FLAG(std::string, video, "", "Ruta del video de entrada.");
 ABSL_FLAG(int, maxFrames, 300, "Máximo de frames a procesar.");
 ABSL_FLAG(int, warmup, 10, "Frames descartados de las estadísticas.");
@@ -84,17 +84,17 @@ double Percentile(const std::vector<double> &sorted, double p)
 
 absl::Status Run()
 {
-    const std::string backend = absl::GetFlag(FLAGS_backend);
+    const std::string device = absl::GetFlag(FLAGS_device);
 
-    if (backend != "cpu" && backend != "gpu")
-        return absl::InvalidArgumentError("--backend debe ser cpu o gpu");
+    if (device != "cpu" && device != "gpu")
+        return absl::InvalidArgumentError("--device debe ser cpu o gpu");
 
     cv::VideoCapture capture(absl::GetFlag(FLAGS_video));
 
     if (!capture.isOpened())
         return absl::NotFoundError("no se puede abrir el video");
 
-    const std::string graphText = std::string(kCommonHeader) + (backend == "gpu" ? kGpuGraph : kCpuGraph);
+    const std::string graphText = std::string(kCommonHeader) + (device == "gpu" ? kGpuGraph : kCpuGraph);
     auto graphConfig = mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(graphText);
 
     const auto initStart = Clock::now();
@@ -149,7 +149,7 @@ absl::Status Run()
 
     const double mean = std::accumulate(latenciesMs.begin(), latenciesMs.end(), 0.0) / latenciesMs.size();
 
-    printf("backend=%s frames=%d\n", backend.c_str(), frameIndex);
+    printf("device=%s frames=%d\n", device.c_str(), frameIndex);
     printf("init_ms=%.1f primer_frame_ms=%.1f\n", initMs, firstFrameMs);
     printf("latencia_ms media=%.2f p50=%.2f p95=%.2f min=%.2f max=%.2f\n", mean, Percentile(latenciesMs, 0.5), Percentile(latenciesMs, 0.95), latenciesMs.front(), latenciesMs.back());
     printf("fps_sostenidos=%.1f manos_detectadas_total=%lld\n", 1000.0 / mean, static_cast<long long>(handsSeen));

@@ -1,12 +1,16 @@
-#ifndef HANDTRACKER_HPP
-#define HANDTRACKER_HPP
+#ifndef PLEXUS_LANDMARKS_HANDTRACKER_HPP
+#define PLEXUS_LANDMARKS_HANDTRACKER_HPP
 
-#include "MediaPipeTracker.hpp"
+#include "HandTypes.hpp"
+#include "LandmarkTracker.hpp"
 
 #include <functional>
 #include <string>
 
-class TRACKER_API HandTracker : public MediaPipeTracker
+namespace plexus::landmarks
+{
+
+class PLEXUS_LANDMARKS_API HandTracker : public LandmarkTracker
 {
 public:
     using ResultCallback = std::function<void(const HandTrackingResult &)>;
@@ -14,7 +18,7 @@ public:
     HandTracker();
     ~HandTracker() override;
 
-    bool initialize(const MediaPipeTrackerConfig &config,
+    bool initialize(const TrackerConfig &config,
                     const std::string &landmarkStream = "hand_landmarks",
                     const std::string &handednessStream = "handedness",
                     const std::string &worldLandmarkStream = "");
@@ -24,5 +28,7 @@ private:
     struct HandImpl;
     std::unique_ptr<HandImpl> handImpl_;
 };
+
+} // namespace plexus::landmarks
 
 #endif
