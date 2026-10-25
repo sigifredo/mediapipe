@@ -5,6 +5,7 @@ licenses(["notice"])  # BSD license
 
 exports_files(["LICENSE"])
 
+# plexus-patch: OpenCV 4.12.0 (vc16). Ver PLEXUS.md.
 OPENCV_VERSION = "4120"  # 4.12.0
 
 config_setting(

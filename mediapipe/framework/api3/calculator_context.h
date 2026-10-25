@@ -426,6 +426,8 @@ struct First {
   using type = T;
 };
 
+// plexus-patch: se elimina el parametro `int&... DoNotSpecify` de los
+// helpers Visit*OrDie (compatibilidad MSVC). Ver PLEXUS.md.
 template <typename T, typename F>
 auto VisitPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
   return std::forward<F>(visitor)(packet.Get<T>());

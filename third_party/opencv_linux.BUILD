@@ -11,6 +11,7 @@ exports_files(["LICENSE"])
 # '                libopencv-imgproc-dev libopencv-video-dev'
 # on Debian Buster/Ubuntu 18.04.
 # If you install OpenCV separately, please modify the build rule accordingly.
+# plexus-patch: OpenCV 4.x del sistema (x86_64), sin highgui. Ver PLEXUS.md.
 cc_library(
     name = "opencv",
     hdrs = glob([

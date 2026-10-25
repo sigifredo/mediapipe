@@ -84,6 +84,7 @@ inline int fourcc(char c1, char c2, char c3, char c4) {
 #include <opencv2/video.hpp>
 #include <opencv2/videoio.hpp>
 
+// plexus-patch: sin optflow en Windows (compatibilidad MSVC). Ver PLEXUS.md.
 #if CV_VERSION_MAJOR == 4 && !defined(MEDIAPIPE_MOBILE) && !defined(_WIN32)
 #include <opencv2/optflow.hpp>
 
