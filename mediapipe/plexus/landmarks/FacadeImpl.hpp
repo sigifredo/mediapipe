@@ -1,15 +1,19 @@
+
+
 #ifndef PLEXUS_LANDMARKS_FACADEIMPL_HPP
 #define PLEXUS_LANDMARKS_FACADEIMPL_HPP
 
-#include "EngineLoader.hpp"
-#include "LandmarkTracker.hpp"
+// own
+#include <EngineLoader.hpp>
+#include <LandmarkTracker.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <functional>
 #include <memory>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 /**
  * @brief Estado interno de la fachada, compartido por LandmarkTracker, HandTracker y BodyTracker.
@@ -42,6 +46,6 @@ struct LandmarkTracker::Impl
     static std::string resolveGraphPath(const std::string &graphPath, const std::string &device);
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

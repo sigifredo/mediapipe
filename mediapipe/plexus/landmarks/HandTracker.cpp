@@ -1,8 +1,10 @@
-#include "HandTracker.hpp"
-#include "FacadeImpl.hpp"
 
-namespace plexus::landmarks
-{
+
+// own
+#include <FacadeImpl.hpp>
+#include <HandTracker.hpp>
+
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 struct HandTracker::HandImpl
 {
@@ -29,4 +31,4 @@ bool HandTracker::initialize(const TrackerConfig &config, const std::string &lan
 
 void HandTracker::setResultCallback(ResultCallback callback) { handImpl_->callback = std::move(callback); }
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END

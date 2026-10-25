@@ -34,9 +34,11 @@ cc_binary(
         "HandTypes.hpp",
         "LandmarkTracker.cpp",
         "LandmarkTracker.hpp",
+        "Namespace.hpp",
         "backend/EngineApi.hpp",
     ],
     defines = ["PLEXUS_LANDMARKS_BUILDING_DLL"],
+    includes = ["."],
     linkopts = select({
         "@platforms//os:windows": [],
         "//conditions:default": ["-ldl"],
@@ -69,9 +71,11 @@ cc_binary(
         "Config.hpp",
         "Export.hpp",
         "HandTypes.hpp",
+        "Namespace.hpp",
         "backend/EngineApi.hpp",
         "backend/MediaPipeEngine.cpp",
     ],
+    includes = ["."],
     linkshared = True,
     deps = [
         "//mediapipe/framework:calculator_framework",

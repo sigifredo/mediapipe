@@ -1,13 +1,17 @@
+
+
 #ifndef PLEXUS_LANDMARKS_ENGINELOADER_HPP
 #define PLEXUS_LANDMARKS_ENGINELOADER_HPP
 
-#include "backend/EngineApi.hpp"
+// own
+#include <Namespace.hpp>
+#include <backend/EngineApi.hpp>
 
+// std
 #include <memory>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 /**
  * @brief Motor cargado dinámicamente. Destruye la instancia con la función de su propia biblioteca.
@@ -42,6 +46,6 @@ private:
     LoadedEngine() = default;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

@@ -1,12 +1,16 @@
+
+
 #ifndef PLEXUS_LANDMARKS_CONFIG_HPP
 #define PLEXUS_LANDMARKS_CONFIG_HPP
 
-#include "Export.hpp"
+// own
+#include <Export.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 /**
  * @brief Dispositivo de cómputo solicitado para la inferencia.
@@ -44,6 +48,6 @@ struct PLEXUS_LANDMARKS_API TrackerConfig
     std::string inputStream = "input_video";
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

@@ -1,16 +1,20 @@
+
+
 #ifndef PLEXUS_LANDMARKS_ENGINEAPI_HPP
 #define PLEXUS_LANDMARKS_ENGINEAPI_HPP
 
-#include "../BodyTypes.hpp"
-#include "../Config.hpp"
-#include "../HandTypes.hpp"
+// own
+#include <BodyTypes.hpp>
+#include <Config.hpp>
+#include <HandTypes.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <cstdint>
 #include <functional>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 /**
  * @brief Contrato entre la fachada (libplexus_landmarks) y los motores
@@ -62,7 +66,7 @@ public:
     virtual bool waitUntilIdle() = 0;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 /// Símbolos que exporta cada biblioteca de motor.
 extern "C"

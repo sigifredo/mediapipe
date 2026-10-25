@@ -1,14 +1,18 @@
+
+
 #ifndef PLEXUS_LANDMARKS_HANDTRACKER_HPP
 #define PLEXUS_LANDMARKS_HANDTRACKER_HPP
 
-#include "HandTypes.hpp"
-#include "LandmarkTracker.hpp"
+// own
+#include <HandTypes.hpp>
+#include <LandmarkTracker.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <functional>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 class PLEXUS_LANDMARKS_API HandTracker : public LandmarkTracker
 {
@@ -29,6 +33,6 @@ private:
     std::unique_ptr<HandImpl> handImpl_;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

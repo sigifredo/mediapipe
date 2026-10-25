@@ -1,14 +1,18 @@
+
+
 #ifndef PLEXUS_LANDMARKS_BODYTRACKER_HPP
 #define PLEXUS_LANDMARKS_BODYTRACKER_HPP
 
-#include "BodyTypes.hpp"
-#include "LandmarkTracker.hpp"
+// own
+#include <BodyTypes.hpp>
+#include <LandmarkTracker.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <functional>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 class PLEXUS_LANDMARKS_API BodyTracker : public LandmarkTracker
 {
@@ -26,6 +30,6 @@ private:
     std::unique_ptr<BodyImpl> bodyImpl_;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

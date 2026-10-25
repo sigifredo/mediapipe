@@ -1,14 +1,18 @@
+
+
 #ifndef PLEXUS_LANDMARKS_HANDTYPES_HPP
 #define PLEXUS_LANDMARKS_HANDTYPES_HPP
 
-#include "Export.hpp"
+// own
+#include <Export.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 struct PLEXUS_LANDMARKS_API HandLandmark
 {
@@ -35,6 +39,6 @@ struct PLEXUS_LANDMARKS_API HandTrackingResult
     int64_t timestampUs;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

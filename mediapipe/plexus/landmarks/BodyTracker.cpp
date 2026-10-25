@@ -1,8 +1,10 @@
-#include "BodyTracker.hpp"
-#include "FacadeImpl.hpp"
 
-namespace plexus::landmarks
-{
+
+// own
+#include <BodyTracker.hpp>
+#include <FacadeImpl.hpp>
+
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 struct BodyTracker::BodyImpl
 {
@@ -28,4 +30,4 @@ bool BodyTracker::initialize(const TrackerConfig &config, const std::string &lan
 
 void BodyTracker::setResultCallback(ResultCallback callback) { bodyImpl_->callback = std::move(callback); }
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END

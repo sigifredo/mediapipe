@@ -1,15 +1,19 @@
+
+
 #ifndef PLEXUS_LANDMARKS_LANDMARKTRACKER_HPP
 #define PLEXUS_LANDMARKS_LANDMARKTRACKER_HPP
 
-#include "Config.hpp"
-#include "Export.hpp"
+// own
+#include <Config.hpp>
+#include <Export.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <cstdint>
 #include <memory>
 #include <string>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 /**
  * @brief Base de HandTracker y BodyTracker.
@@ -48,6 +52,6 @@ protected:
     LandmarkTracker();
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

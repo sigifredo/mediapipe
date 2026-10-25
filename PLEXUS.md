@@ -39,6 +39,7 @@ El consumidor enlaza solo `libplexus_landmarks.so`. Los motores y `mediapipe/` d
 
 | Elemento | Rol |
 |---|---|
+| `Namespace.hpp` | Macros de apertura y cierre del namespace |
 | `Config.hpp` | `ComputeDevice` (Auto, Cpu, Gpu) y `TrackerConfig` |
 | `HandTypes.hpp`, `BodyTypes.hpp` | Resultados y landmarks de cada dominio |
 | `LandmarkTracker` | Base de `HandTracker` y `BodyTracker`. Gestiona dispositivo, motor y fallback |
@@ -54,6 +55,8 @@ Variables de entorno: `PLEXUS_LANDMARKS_DEVICE`, `PLEXUS_LANDMARKS_LIBDIR`, `PLE
 
 - **Nombre por la salida.** La biblioteca se llama por lo que entrega (landmarks), no por una modalidad (`hand`) ni por la dependencia (`mediapipe`). Admite cara u otros dominios sin renombrar. El API público no menciona MediaPipe porque la fachada no depende de él; solo `MediaPipeEngine` lo nombra.
 - **"Dispositivo" y "motor" son conceptos distintos.** El dispositivo (`ComputeDevice`) es dónde se infiere. El motor (`IEngine`) es la implementación que ejecuta los grafos. Hay un motor por dispositivo, cargado desde su propia biblioteca.
+- **Estilo de archivo.** Todo `.hpp` y `.cpp` empieza con dos líneas en blanco.
+- **Namespace por macros.** `Namespace.hpp` define `PLEXUS_LANDMARKS_NAMESPACE_BEGIN` y `PLEXUS_LANDMARKS_NAMESPACE_END`, que abren y cierran `plexus::landmarks` sin que el IDE indente el contenido. Los includes propios usan `<...>` relativos a `mediapipe/plexus/landmarks/` (`includes = ["."]` en el BUILD) y se agrupan en secciones `// own`, `// mediapipe`, `// std` y `// system`.
 - **Un solo prefijo** (`plexus_landmarks` / `PLEXUS_LANDMARKS_*`) en bibliotecas, macros, variables de entorno y símbolos exportados, y namespace propio para evitar colisiones en el espacio global del consumidor.
 - **Tipos por dominio.** Los tipos de manos y de cuerpo están en cabeceras separadas. `HandWorldLandmark` es específico de manos (sin visibilidad); `BodyLandmark` sirve para coordenadas normalizadas y de mundo del cuerpo.
 - **Ubicación fuera de `examples/`.** `mediapipe/examples/desktop/hand_tracking/` se mantiene idéntico a upstream; el código propio vive en `mediapipe/plexus/`.

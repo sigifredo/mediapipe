@@ -1,3 +1,5 @@
+
+
 /**
  * @file LandmarksBench.cpp
  * @brief Benchmark headless del grafo de manos en CPU o GPU.
@@ -35,10 +37,9 @@ ABSL_FLAG(int, warmup, 10, "Frames descartados de las estadísticas.");
 
 namespace
 {
+    using Clock = std::chrono::steady_clock;
 
-using Clock = std::chrono::steady_clock;
-
-const char *const kCommonHeader = R"pb(
+    const char *const kCommonHeader = R"pb(
   input_stream: "input_video"
   node {
     calculator: "ConstantSidePacketCalculator"
@@ -51,7 +52,7 @@ const char *const kCommonHeader = R"pb(
   }
 )pb";
 
-const char *const kCpuGraph = R"pb(
+    const char *const kCpuGraph = R"pb(
   node {
     calculator: "HandLandmarkTrackingCpu"
     input_stream: "IMAGE:input_video"
@@ -60,7 +61,7 @@ const char *const kCpuGraph = R"pb(
   }
 )pb";
 
-const char *const kGpuGraph = R"pb(
+    const char *const kGpuGraph = R"pb(
   node {
     calculator: "ImageFrameToGpuBufferCalculator"
     input_stream: "input_video"
@@ -74,88 +75,88 @@ const char *const kGpuGraph = R"pb(
   }
 )pb";
 
-/**
- * @brief Calcula el percentil p (0 a 1) de una serie ya ordenada.
- */
-double Percentile(const std::vector<double> &sorted, double p)
-{
-    return sorted[static_cast<size_t>(p * (sorted.size() - 1))];
-}
-
-absl::Status Run()
-{
-    const std::string device = absl::GetFlag(FLAGS_device);
-
-    if (device != "cpu" && device != "gpu")
-        return absl::InvalidArgumentError("--device debe ser cpu o gpu");
-
-    cv::VideoCapture capture(absl::GetFlag(FLAGS_video));
-
-    if (!capture.isOpened())
-        return absl::NotFoundError("no se puede abrir el video");
-
-    const std::string graphText = std::string(kCommonHeader) + (device == "gpu" ? kGpuGraph : kCpuGraph);
-    auto graphConfig = mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(graphText);
-
-    const auto initStart = Clock::now();
-    mediapipe::CalculatorGraph graph;
-
-    ABSL_RETURN_IF_ERROR(graph.Initialize(graphConfig));
-
-    int64_t handsSeen = 0;
-
-    ABSL_RETURN_IF_ERROR(graph.ObserveOutputStream("landmarks", [&handsSeen](const mediapipe::Packet &packet) {
-        handsSeen += packet.Get<std::vector<mediapipe::NormalizedLandmarkList>>().size();
-        return absl::OkStatus();
-    }));
-    ABSL_RETURN_IF_ERROR(graph.StartRun({}));
-
-    const double initMs = std::chrono::duration<double, std::milli>(Clock::now() - initStart).count();
-
-    std::vector<double> latenciesMs;
-    double firstFrameMs = 0.0;
-    int frameIndex = 0;
-    cv::Mat bgr;
-
-    while (frameIndex < absl::GetFlag(FLAGS_maxFrames) && capture.read(bgr))
+    /**
+     * @brief Calcula el percentil p (0 a 1) de una serie ya ordenada.
+     */
+    double Percentile(const std::vector<double> &sorted, double p)
     {
-        auto frame = std::make_unique<mediapipe::ImageFrame>(mediapipe::ImageFormat::SRGB, bgr.cols, bgr.rows, mediapipe::ImageFrame::kDefaultAlignmentBoundary);
-        cv::Mat view = mediapipe::formats::MatView(frame.get());
-
-        cv::cvtColor(bgr, view, cv::COLOR_BGR2RGB);
-
-        const auto start = Clock::now();
-
-        ABSL_RETURN_IF_ERROR(graph.AddPacketToInputStream("input_video", mediapipe::Adopt(frame.release()).At(mediapipe::Timestamp(frameIndex * 33333LL))));
-        ABSL_RETURN_IF_ERROR(graph.WaitUntilIdle());
-
-        const double ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-
-        if (frameIndex == 0)
-            firstFrameMs = ms;
-        else if (frameIndex >= absl::GetFlag(FLAGS_warmup))
-            latenciesMs.push_back(ms);
-
-        ++frameIndex;
+        return sorted[static_cast<size_t>(p * (sorted.size() - 1))];
     }
 
-    ABSL_RETURN_IF_ERROR(graph.CloseInputStream("input_video"));
-    ABSL_RETURN_IF_ERROR(graph.WaitUntilDone());
+    absl::Status Run()
+    {
+        const std::string device = absl::GetFlag(FLAGS_device);
 
-    if (latenciesMs.empty())
-        return absl::FailedPreconditionError("muy pocos frames para estadísticas");
+        if (device != "cpu" && device != "gpu")
+            return absl::InvalidArgumentError("--device debe ser cpu o gpu");
 
-    std::sort(latenciesMs.begin(), latenciesMs.end());
+        cv::VideoCapture capture(absl::GetFlag(FLAGS_video));
 
-    const double mean = std::accumulate(latenciesMs.begin(), latenciesMs.end(), 0.0) / latenciesMs.size();
+        if (!capture.isOpened())
+            return absl::NotFoundError("no se puede abrir el video");
 
-    printf("device=%s frames=%d\n", device.c_str(), frameIndex);
-    printf("init_ms=%.1f primer_frame_ms=%.1f\n", initMs, firstFrameMs);
-    printf("latencia_ms media=%.2f p50=%.2f p95=%.2f min=%.2f max=%.2f\n", mean, Percentile(latenciesMs, 0.5), Percentile(latenciesMs, 0.95), latenciesMs.front(), latenciesMs.back());
-    printf("fps_sostenidos=%.1f manos_detectadas_total=%lld\n", 1000.0 / mean, static_cast<long long>(handsSeen));
+        const std::string graphText = std::string(kCommonHeader) + (device == "gpu" ? kGpuGraph : kCpuGraph);
+        auto graphConfig = mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(graphText);
 
-    return absl::OkStatus();
-}
+        const auto initStart = Clock::now();
+        mediapipe::CalculatorGraph graph;
+
+        ABSL_RETURN_IF_ERROR(graph.Initialize(graphConfig));
+
+        int64_t handsSeen = 0;
+
+        ABSL_RETURN_IF_ERROR(graph.ObserveOutputStream("landmarks", [&handsSeen](const mediapipe::Packet &packet)
+                                                       {
+        handsSeen += packet.Get<std::vector<mediapipe::NormalizedLandmarkList>>().size();
+        return absl::OkStatus(); }));
+        ABSL_RETURN_IF_ERROR(graph.StartRun({}));
+
+        const double initMs = std::chrono::duration<double, std::milli>(Clock::now() - initStart).count();
+
+        std::vector<double> latenciesMs;
+        double firstFrameMs = 0.0;
+        int frameIndex = 0;
+        cv::Mat bgr;
+
+        while (frameIndex < absl::GetFlag(FLAGS_maxFrames) && capture.read(bgr))
+        {
+            auto frame = std::make_unique<mediapipe::ImageFrame>(mediapipe::ImageFormat::SRGB, bgr.cols, bgr.rows, mediapipe::ImageFrame::kDefaultAlignmentBoundary);
+            cv::Mat view = mediapipe::formats::MatView(frame.get());
+
+            cv::cvtColor(bgr, view, cv::COLOR_BGR2RGB);
+
+            const auto start = Clock::now();
+
+            ABSL_RETURN_IF_ERROR(graph.AddPacketToInputStream("input_video", mediapipe::Adopt(frame.release()).At(mediapipe::Timestamp(frameIndex * 33333LL))));
+            ABSL_RETURN_IF_ERROR(graph.WaitUntilIdle());
+
+            const double ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+
+            if (frameIndex == 0)
+                firstFrameMs = ms;
+            else if (frameIndex >= absl::GetFlag(FLAGS_warmup))
+                latenciesMs.push_back(ms);
+
+            ++frameIndex;
+        }
+
+        ABSL_RETURN_IF_ERROR(graph.CloseInputStream("input_video"));
+        ABSL_RETURN_IF_ERROR(graph.WaitUntilDone());
+
+        if (latenciesMs.empty())
+            return absl::FailedPreconditionError("muy pocos frames para estadísticas");
+
+        std::sort(latenciesMs.begin(), latenciesMs.end());
+
+        const double mean = std::accumulate(latenciesMs.begin(), latenciesMs.end(), 0.0) / latenciesMs.size();
+
+        printf("device=%s frames=%d\n", device.c_str(), frameIndex);
+        printf("init_ms=%.1f primer_frame_ms=%.1f\n", initMs, firstFrameMs);
+        printf("latencia_ms media=%.2f p50=%.2f p95=%.2f min=%.2f max=%.2f\n", mean, Percentile(latenciesMs, 0.5), Percentile(latenciesMs, 0.95), latenciesMs.front(), latenciesMs.back());
+        printf("fps_sostenidos=%.1f manos_detectadas_total=%lld\n", 1000.0 / mean, static_cast<long long>(handsSeen));
+
+        return absl::OkStatus();
+    }
 
 } // namespace
 

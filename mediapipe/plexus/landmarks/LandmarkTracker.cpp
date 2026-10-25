@@ -1,12 +1,15 @@
-#include "FacadeImpl.hpp"
 
+
+// own
+#include <FacadeImpl.hpp>
+
+// std
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 ComputeDevice LandmarkTracker::Impl::effectiveDevice(ComputeDevice requested)
 {
@@ -151,4 +154,4 @@ bool LandmarkTracker::waitUntilIdle() { return impl_->active && impl_->active->e
 
 LandmarkTracker::LandmarkTracker() : impl_(std::make_unique<Impl>()) {}
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END

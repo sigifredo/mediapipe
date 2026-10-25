@@ -1,13 +1,17 @@
+
+
 #ifndef PLEXUS_LANDMARKS_BODYTYPES_HPP
 #define PLEXUS_LANDMARKS_BODYTYPES_HPP
 
-#include "Export.hpp"
+// own
+#include <Export.hpp>
+#include <Namespace.hpp>
 
+// std
 #include <cstdint>
 #include <vector>
 
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 struct PLEXUS_LANDMARKS_API BodyLandmark
 {
@@ -23,6 +27,6 @@ struct PLEXUS_LANDMARKS_API BodyTrackingResult
     int64_t timestampUs;
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 #endif

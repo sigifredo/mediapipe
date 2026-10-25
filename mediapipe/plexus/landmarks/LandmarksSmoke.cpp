@@ -1,3 +1,5 @@
+
+
 /**
  * @file LandmarksSmoke.cpp
  * @brief Prueba de humo de libplexus_landmarks: selección de dispositivo y procesamiento de frames.
@@ -7,9 +9,11 @@
  * No depende de MediaPipe: solo de la fachada. Ver test_landmarks.sh.
  */
 
-#include "BodyTracker.hpp"
-#include "HandTracker.hpp"
+// own
+#include <BodyTracker.hpp>
+#include <HandTracker.hpp>
 
+// std
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -23,41 +27,40 @@ using namespace plexus::landmarks;
 
 namespace
 {
-
-ComputeDevice ParseDevice(const char *text)
-{
-    if (!std::strcmp(text, "cpu"))
-        return ComputeDevice::Cpu;
-
-    if (!std::strcmp(text, "gpu"))
-        return ComputeDevice::Gpu;
-
-    return ComputeDevice::Auto;
-}
-
-/**
- * @brief Envía `frames` frames sintéticos y devuelve cuántos se aceptaron.
- */
-template <typename Tracker>
-int Feed(Tracker &tracker, int frames)
-{
-    const int width = 640, height = 480;
-    std::vector<uint8_t> rgb(width * height * 3);
-    int accepted = 0;
-
-    for (int i = 0; i < frames; ++i)
+    ComputeDevice ParseDevice(const char *text)
     {
-        for (size_t p = 0; p < rgb.size(); ++p)
-            rgb[p] = static_cast<uint8_t>((p + i * 7) & 0xFF);
+        if (!std::strcmp(text, "cpu"))
+            return ComputeDevice::Cpu;
 
-        if (tracker.processFrame(rgb.data(), width, height, i * 33333LL))
-            ++accepted;
+        if (!std::strcmp(text, "gpu"))
+            return ComputeDevice::Gpu;
 
-        tracker.waitUntilIdle();
+        return ComputeDevice::Auto;
     }
 
-    return accepted;
-}
+    /**
+     * @brief Envía `frames` frames sintéticos y devuelve cuántos se aceptaron.
+     */
+    template <typename Tracker>
+    int Feed(Tracker &tracker, int frames)
+    {
+        const int width = 640, height = 480;
+        std::vector<uint8_t> rgb(width * height * 3);
+        int accepted = 0;
+
+        for (int i = 0; i < frames; ++i)
+        {
+            for (size_t p = 0; p < rgb.size(); ++p)
+                rgb[p] = static_cast<uint8_t>((p + i * 7) & 0xFF);
+
+            if (tracker.processFrame(rgb.data(), width, height, i * 33333LL))
+                ++accepted;
+
+            tracker.waitUntilIdle();
+        }
+
+        return accepted;
+    }
 
 } // namespace
 

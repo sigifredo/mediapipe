@@ -1,3 +1,5 @@
+
+
 /**
  * @file MediaPipeEngine.cpp
  * @brief Implementación de IEngine sobre CalculatorGraph de MediaPipe.
@@ -6,8 +8,10 @@
  * (libplexus_landmarks_gpu) y con él (libplexus_landmarks_cpu). Ver build_plexus.sh.
  */
 
-#include "EngineApi.hpp"
+// own
+#include <backend/EngineApi.hpp>
 
+// mediapipe
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "mediapipe/framework/calculator_framework.h"
@@ -20,6 +24,15 @@
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
 #endif
 
+// std
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <sstream>
+
+// system
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -28,113 +41,105 @@
 
 ABSL_DECLARE_FLAG(std::string, resource_root_dir);
 
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <map>
-#include <mutex>
-#include <sstream>
-
-namespace plexus::landmarks
-{
+PLEXUS_LANDMARKS_NAMESPACE_BEGIN
 
 namespace
 {
 
-/// Sufijo del stream que recibe el ImageFrame cuando el grafo espera GpuBuffer.
-const char *const kFrameSuffix = "_frame";
+    /// Sufijo del stream que recibe el ImageFrame cuando el grafo espera GpuBuffer.
+    const char *const kFrameSuffix = "_frame";
 
-/**
- * @brief Resultado parcial de manos, a la espera de que lleguen todos los streams del timestamp.
- */
-struct PartialHandResult
-{
-    std::vector<HandClassification> handedness;
-    std::vector<std::vector<HandLandmark>> hands;
-    bool hasHandedness = false;
-    bool hasLandmarks = false;
-    bool hasWorldLandmarks = false;
-    bool wantsWorldLandmarks = false;
-    std::vector<std::vector<HandWorldLandmark>> worldLandmarks;
-
-    bool isComplete() const { return hasLandmarks && hasHandedness && (!wantsWorldLandmarks || hasWorldLandmarks); }
-};
-
-/**
- * @brief Resultado parcial de cuerpo.
- */
-struct PartialBodyResult
-{
-    bool hasNormalized = false;
-    bool hasWorld = false;
-    std::vector<BodyLandmark> normalized;
-    std::vector<BodyLandmark> world;
-
-    bool isComplete() const { return hasNormalized && hasWorld; }
-};
-
-template <typename List>
-std::vector<BodyLandmark> ToBodyLandmarks(const List &list)
-{
-    std::vector<BodyLandmark> landmarks;
-    landmarks.reserve(list.landmark_size());
-
-    for (const auto &lm : list.landmark())
-        landmarks.push_back({lm.x(), lm.y(), lm.z(), lm.has_visibility() ? lm.visibility() : 0.0f, lm.has_presence() ? lm.presence() : 0.0f});
-
-    return landmarks;
-}
-
-/// Directorio de esta biblioteca de motor.
-std::string LibraryDirectory()
-{
-#ifdef _WIN32
-    HMODULE module = nullptr;
-    char path[MAX_PATH] = {0};
-
-    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCSTR>(&LibraryDirectory), &module) || !GetModuleFileNameA(module, path, MAX_PATH))
-        return "";
-
-    std::string full(path);
-    const auto slash = full.find_last_of("\\/");
-
-    return slash == std::string::npos ? "" : full.substr(0, slash);
-#else
-    Dl_info info;
-
-    if (!dladdr(reinterpret_cast<void *>(&LibraryDirectory), &info) || !info.dli_fname)
-        return "";
-
-    std::string full(info.dli_fname);
-    const auto slash = full.find_last_of('/');
-
-    return slash == std::string::npos ? "" : full.substr(0, slash);
-#endif
-}
-
-/**
- * @brief Fija desde dónde se resuelven los modelos (`mediapipe/modules/...`).
- *
- * Prioridad: PLEXUS_LANDMARKS_RESOURCE_DIR; el flag resource_root_dir si ya tiene
- * valor; el directorio de la biblioteca (donde build_plexus.sh deja los
- * modelos). Si nada aplica, los modelos se buscan desde el directorio de trabajo.
- */
-void ConfigureResourceRoot()
-{
-    if (const char *env = std::getenv("PLEXUS_LANDMARKS_RESOURCE_DIR"))
+    /**
+     * @brief Resultado parcial de manos, a la espera de que lleguen todos los streams del timestamp.
+     */
+    struct PartialHandResult
     {
-        absl::SetFlag(&FLAGS_resource_root_dir, std::string(env));
-        return;
+        std::vector<HandClassification> handedness;
+        std::vector<std::vector<HandLandmark>> hands;
+        bool hasHandedness = false;
+        bool hasLandmarks = false;
+        bool hasWorldLandmarks = false;
+        bool wantsWorldLandmarks = false;
+        std::vector<std::vector<HandWorldLandmark>> worldLandmarks;
+
+        bool isComplete() const { return hasLandmarks && hasHandedness && (!wantsWorldLandmarks || hasWorldLandmarks); }
+    };
+
+    /**
+     * @brief Resultado parcial de cuerpo.
+     */
+    struct PartialBodyResult
+    {
+        bool hasNormalized = false;
+        bool hasWorld = false;
+        std::vector<BodyLandmark> normalized;
+        std::vector<BodyLandmark> world;
+
+        bool isComplete() const { return hasNormalized && hasWorld; }
+    };
+
+    template <typename List>
+    std::vector<BodyLandmark> ToBodyLandmarks(const List &list)
+    {
+        std::vector<BodyLandmark> landmarks;
+        landmarks.reserve(list.landmark_size());
+
+        for (const auto &lm : list.landmark())
+            landmarks.push_back({lm.x(), lm.y(), lm.z(), lm.has_visibility() ? lm.visibility() : 0.0f, lm.has_presence() ? lm.presence() : 0.0f});
+
+        return landmarks;
     }
 
-    if (!absl::GetFlag(FLAGS_resource_root_dir).empty())
-        return;
+    /// Directorio de esta biblioteca de motor.
+    std::string LibraryDirectory()
+    {
+#ifdef _WIN32
+        HMODULE module = nullptr;
+        char path[MAX_PATH] = {0};
 
-    const std::string dir = LibraryDirectory();
+        if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCSTR>(&LibraryDirectory), &module) || !GetModuleFileNameA(module, path, MAX_PATH))
+            return "";
 
-    if (!dir.empty() && std::ifstream(dir + "/mediapipe/modules/palm_detection/palm_detection_full.tflite").good())
-        absl::SetFlag(&FLAGS_resource_root_dir, dir);
-}
+        std::string full(path);
+        const auto slash = full.find_last_of("\\/");
+
+        return slash == std::string::npos ? "" : full.substr(0, slash);
+#else
+        Dl_info info;
+
+        if (!dladdr(reinterpret_cast<void *>(&LibraryDirectory), &info) || !info.dli_fname)
+            return "";
+
+        std::string full(info.dli_fname);
+        const auto slash = full.find_last_of('/');
+
+        return slash == std::string::npos ? "" : full.substr(0, slash);
+#endif
+    }
+
+    /**
+     * @brief Fija desde dónde se resuelven los modelos (`mediapipe/modules/...`).
+     *
+     * Prioridad: PLEXUS_LANDMARKS_RESOURCE_DIR; el flag resource_root_dir si ya tiene
+     * valor; el directorio de la biblioteca (donde build_plexus.sh deja los
+     * modelos). Si nada aplica, los modelos se buscan desde el directorio de trabajo.
+     */
+    void ConfigureResourceRoot()
+    {
+        if (const char *env = std::getenv("PLEXUS_LANDMARKS_RESOURCE_DIR"))
+        {
+            absl::SetFlag(&FLAGS_resource_root_dir, std::string(env));
+            return;
+        }
+
+        if (!absl::GetFlag(FLAGS_resource_root_dir).empty())
+            return;
+
+        const std::string dir = LibraryDirectory();
+
+        if (!dir.empty() && std::ifstream(dir + "/mediapipe/modules/palm_detection/palm_detection_full.tflite").good())
+            absl::SetFlag(&FLAGS_resource_root_dir, dir);
+    }
 
 } // namespace
 
@@ -572,7 +577,7 @@ private:
 #endif
 };
 
-} // namespace plexus::landmarks
+PLEXUS_LANDMARKS_NAMESPACE_END
 
 extern "C"
 {
