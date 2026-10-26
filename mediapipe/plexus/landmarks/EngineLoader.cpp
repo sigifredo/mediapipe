@@ -2,6 +2,7 @@
 
 // own
 #include <EngineLoader.hpp>
+#include <LandmarksVersion.hpp>
 
 // std
 #include <cstdlib>
@@ -88,6 +89,7 @@ std::unique_ptr<LoadedEngine> LoadedEngine::load(const std::string &device, std:
 
     auto create = reinterpret_cast<CreateEngineFn>(GetProcAddress(lib, PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL));
     auto destroy = reinterpret_cast<DestroyEngineFn>(GetProcAddress(lib, PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL));
+    auto engineVersion = reinterpret_cast<EngineVersionFn>(GetProcAddress(lib, PLEXUS_LANDMARKS_ENGINE_VERSION_SYMBOL));
 #else
     // RTLD_NOW: si falta una dependencia del sistema (p. ej. libEGL) se falla aquí y no más tarde.
     void *lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -100,11 +102,21 @@ std::unique_ptr<LoadedEngine> LoadedEngine::load(const std::string &device, std:
 
     auto create = reinterpret_cast<CreateEngineFn>(dlsym(lib, PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL));
     auto destroy = reinterpret_cast<DestroyEngineFn>(dlsym(lib, PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL));
+    auto engineVersion = reinterpret_cast<EngineVersionFn>(dlsym(lib, PLEXUS_LANDMARKS_ENGINE_VERSION_SYMBOL));
 #endif
 
     if (!create || !destroy)
     {
         error = "la biblioteca no exporta los símbolos de motor: " + path;
+        return nullptr;
+    }
+
+    // Fachada y motor se compilan juntos: una mezcla de builds distintos comparte IEngine solo en apariencia.
+    const std::string engineId = engineVersion ? engineVersion() : "sin versión";
+
+    if (engineId != describe())
+    {
+        error = "el motor " + path + " es " + engineId + " y la fachada es " + describe();
         return nullptr;
     }
 

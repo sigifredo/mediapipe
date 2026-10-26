@@ -73,6 +73,7 @@ extern "C"
 {
     typedef plexus::landmarks::IEngine *(*CreateEngineFn)();
     typedef void (*DestroyEngineFn)(plexus::landmarks::IEngine *);
+    typedef const char *(*EngineVersionFn)();
 }
 
 #ifdef _WIN32
@@ -83,5 +84,6 @@ extern "C"
 
 #define PLEXUS_LANDMARKS_CREATE_ENGINE_SYMBOL "plexusLandmarksCreateEngine"
 #define PLEXUS_LANDMARKS_DESTROY_ENGINE_SYMBOL "plexusLandmarksDestroyEngine"
+#define PLEXUS_LANDMARKS_ENGINE_VERSION_SYMBOL "plexusLandmarksEngineVersion"
 
 #endif

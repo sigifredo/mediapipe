@@ -27,6 +27,19 @@ if (-not $env:JAVA_HOME) {
     $env:JAVA_HOME = Join-Path $installBase "embedded_tools\jdk"
 }
 
+# Versión: <base de upstream>+plexus.<revisión propia>, de mediapipe/plexus/VERSION. La base debe coincidir
+# con MEDIAPIPE_FULL_VERSION; si no, se olvidó actualizar VERSION al cambiar de base.
+$version = (Get-Content "mediapipe/plexus/VERSION" -Raw).Trim()
+$upstream = [regex]::Match((Get-Content "mediapipe/version.bzl" -Raw), 'MEDIAPIPE_FULL_VERSION = "([^"]+)"').Groups[1].Value
+if (-not $upstream -or $version -notmatch ('^' + [regex]::Escape($upstream) + '\+plexus\.\d+$')) {
+    throw "mediapipe/plexus/VERSION ($version) no corresponde a la base $upstream (esperado $upstream+plexus.N)"
+}
+$revision = (& git rev-parse --short=9 HEAD).Trim()
+if (& git status --porcelain --untracked-files=no) { $revision += "-dirty" }
+
+# LandmarksVersion.cpp incluye este archivo; es lo único que cambia entre commits.
+@("#define PLEXUS_LANDMARKS_VERSION `"$version`"", "#define PLEXUS_LANDMARKS_REVISION `"$revision`"") | Set-Content -Encoding ascii "$TargetDir/VersionInfo.generated.hpp"
+
 $common = @("-c", "opt", "--config=windows", "--define", "MEDIAPIPE_DISABLE_GPU=1", "--platform_suffix=-cpu")
 
 & $Bazel build @common "//$TargetDir`:libplexus_landmarks.so" "//$TargetDir`:libplexus_landmarks_engine.so" "//$TargetDir`:models"
@@ -73,5 +86,8 @@ Pop-Location
 $hand = Join-Path $Dist "mediapipe/modules/hand_landmark"
 New-Item -ItemType Directory -Force $hand | Out-Null
 Copy-Item -Force "mediapipe/modules/hand_landmark/handedness.txt" $hand
+
+# Lo que vendoriza Plexus junto a las bibliotecas: qué build es.
+@("version=$version", "upstream=$upstream", "revision=$revision", "date=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd'))", "platform=windows-x86_64") | Set-Content -Encoding ascii "$Dist/VERSION"
 
 Get-ChildItem $Dist | Format-Table Name, Length

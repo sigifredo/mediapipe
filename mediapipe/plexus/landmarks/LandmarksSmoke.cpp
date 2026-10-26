@@ -5,7 +5,7 @@
  * @brief Prueba de humo de libplexus_landmarks: selección de dispositivo y procesamiento de frames.
  *
  * Uso: landmarks_smoke <hand|body> <graphPath> <auto|cpu|gpu> [frames]
- * Imprime `device=<cpu|gpu>`, `frames_ok=<n>` y `close_ok=<0|1>` (resultado de closeInputStream).
+ * Imprime `version=<describe()>`, `device=<cpu|gpu>`, `frames_ok=<n>` y `close_ok=<0|1>` (resultado de closeInputStream).
  * Sale con 1 si no puede iniciar, si se rechaza algún frame o si falla el cierre.
  * No depende de MediaPipe: solo de la fachada. Ver test_landmarks.sh.
  */
@@ -13,6 +13,7 @@
 // own
 #include <BodyTracker.hpp>
 #include <HandTracker.hpp>
+#include <LandmarksVersion.hpp>
 
 // std
 #include <atomic>
@@ -116,7 +117,7 @@ int main(int argc, char **argv)
         tracker.stop();
     }
 
-    printf("device=%s frames_ok=%d/%d results=%d close_ok=%d\n", device.c_str(), accepted, frames, results.load(), closed ? 1 : 0);
+    printf("version=%s device=%s frames_ok=%d/%d results=%d close_ok=%d\n", describe(), device.c_str(), accepted, frames, results.load(), closed ? 1 : 0);
 
     return accepted == frames && closed ? 0 : 1;
 }

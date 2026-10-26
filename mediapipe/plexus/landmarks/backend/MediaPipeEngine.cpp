@@ -9,6 +9,7 @@
  */
 
 // own
+#include <LandmarksVersion.hpp>
 #include <backend/EngineApi.hpp>
 
 // mediapipe
@@ -584,4 +585,7 @@ extern "C"
     PLEXUS_LANDMARKS_ENGINE_EXPORT plexus::landmarks::IEngine *plexusLandmarksCreateEngine() { return new plexus::landmarks::MediaPipeEngine(); }
 
     PLEXUS_LANDMARKS_ENGINE_EXPORT void plexusLandmarksDestroyEngine(plexus::landmarks::IEngine *engine) { delete engine; }
+
+    /// Identificación del motor (`plexus::landmarks::describe()`); la fachada la compara con la suya al cargarlo.
+    PLEXUS_LANDMARKS_ENGINE_EXPORT const char *plexusLandmarksEngineVersion() { return plexus::landmarks::describe(); }
 }

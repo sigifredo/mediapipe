@@ -14,6 +14,23 @@ ROOT=$PWD
 DIST=dist
 WHAT="${1:-all}"
 
+# Versión: <base de upstream>+plexus.<revisión propia>, de mediapipe/plexus/VERSION. La base debe coincidir
+# con MEDIAPIPE_FULL_VERSION; si no, se olvidó actualizar VERSION al cambiar de base.
+VERSION=$(tr -d '[:space:]' < mediapipe/plexus/VERSION)
+UPSTREAM=$(sed -n 's/^MEDIAPIPE_FULL_VERSION = "\(.*\)"/\1/p' mediapipe/version.bzl)
+if [[ -z $UPSTREAM || ${VERSION%%+*} != "$UPSTREAM" || $VERSION != *+plexus.* ]]; then
+  echo "mediapipe/plexus/VERSION ($VERSION) no corresponde a la base $UPSTREAM (esperado $UPSTREAM+plexus.N)" >&2
+  exit 1
+fi
+REVISION=$(git rev-parse --short=9 HEAD)
+[[ -z $(git status --porcelain --untracked-files=no) ]] || REVISION+=-dirty
+
+# LandmarksVersion.cpp incluye este archivo; es lo único que cambia entre commits.
+cat > "$TARGET_DIR/VersionInfo.generated.hpp" <<EOF
+#define PLEXUS_LANDMARKS_VERSION "$VERSION"
+#define PLEXUS_LANDMARKS_REVISION "$REVISION"
+EOF
+
 # -fno-gnu-unique: sin esto los singletons de MediaPipe (registros de calculators) son
 # globales al proceso aunque se use RTLD_LOCAL, y no pueden coexistir dos motores
 # (p. ej. gpu que falla al iniciar y luego cpu).
@@ -62,6 +79,15 @@ case "$WHAT" in
 esac
 
 chmod u+w "$DIST"/*.$EXT
+
+# Lo que vendoriza Plexus junto a las bibliotecas: qué build es.
+cat > "$DIST/VERSION" <<EOF
+version=$VERSION
+upstream=$UPSTREAM
+revision=$REVISION
+date=$(date -u +%Y-%m-%d)
+platform=$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+EOF
 
 # Bazel deja el install name con extensión .so; dyld lo necesita igual al nombre real del archivo.
 if [[ $EXT == dylib ]]; then

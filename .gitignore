@@ -8,3 +8,6 @@ node_modules/
 
 # Salida de build_plexus.sh
 dist/
+
+# Generado por build_plexus.{sh,ps1} (versión y commit del build)
+mediapipe/plexus/landmarks/VersionInfo.generated.hpp

@@ -47,6 +47,19 @@ run "auto sin marcador usa cpu"    "device=cpu" "$S" hand "$GRAPHS/hand_cpu.pbtx
 (( HAS_GPU )) && run "cierre de entrada en gpu (cuerpo)" "close_ok=1" "$S" body "$BODY" gpu
 run "cierre de entrada en cpu (mano)"   "close_ok=1" "$S" hand "$HAND" cpu
 
+# La fachada informa la versión de dist/VERSION (la misma que vendoriza Plexus).
+BUILD_VERSION="$(sed -n 's/^version=//p' dist/VERSION) ($(sed -n 's/^revision=//p' dist/VERSION))"
+run "versión de la fachada = dist/VERSION" "version=$BUILD_VERSION" "$S" hand "$HAND" cpu
+
+# Un motor de otro build (otra versión) se rechaza: se altera la revisión propia en una copia.
+mkdir -p "$OUT/otra_version"
+cp dist/libplexus_landmarks.$EXT "$OUT/otra_version/"
+LC_ALL=C perl -pe 's/\+plexus\.(\d)/"+plexus.".(($1+1)%10)/e' dist/libplexus_landmarks_cpu.$EXT > "$OUT/otra_version/libplexus_landmarks_cpu.$EXT"
+chmod +x "$OUT/otra_version/libplexus_landmarks_cpu.$EXT"
+[[ $EXT == dylib ]] && codesign --force --sign - "$OUT/otra_version/libplexus_landmarks_cpu.$EXT" 2>/dev/null
+ln -s "$PWD/dist/mediapipe" "$OUT/otra_version/mediapipe"
+run "motor de otra versión" FAIL env PLEXUS_LANDMARKS_LIBDIR="$OUT/otra_version" "$S" hand "$HAND" cpu
+
 # Sin biblioteca gpu en el directorio: auto cae a cpu, gpu explícito falla.
 mkdir -p "$OUT/solo_cpu"
 cp dist/libplexus_landmarks.$EXT dist/libplexus_landmarks_cpu.$EXT "$OUT/solo_cpu/"

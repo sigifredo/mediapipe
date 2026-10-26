@@ -2,6 +2,17 @@
 
 Rama `plexus`: MediaPipe upstream más los cambios listados aquí. Base actual: `v1.1.1`.
 
+## Versionado
+
+La versión del fork es `<base de upstream>+plexus.<N>`, por ejemplo `1.1.1+plexus.1`. Es SemVer válido: lo que va tras `+` es metadato de build y no cambia la precedencia (con `-N` sería un pre-release anterior a `1.1.1`).
+
+- La base es `MEDIAPIPE_FULL_VERSION` de `mediapipe/version.bzl`. `N` es la revisión propia: sube en 1 con cada cambio del fork que se vendoriza en Plexus y vuelve a 1 al cambiar de base.
+- Se edita a mano en `mediapipe/plexus/VERSION`, en el mismo commit que el cambio. `build_plexus.{sh,ps1}` fallan si la base de ese archivo no coincide con `version.bzl`.
+- Cada versión vendorizada lleva el tag `v<versión>` (por ejemplo `v1.1.1+plexus.1`) sobre el commit exacto. `git describe --match 'v*+plexus.*'` dice dónde está el árbol respecto al último tag propio; los tags `vX.Y.Z` de upstream no sirven para eso (hay que traerlos con `git fetch upstream --tags`).
+- El build escribe `mediapipe/plexus/landmarks/VersionInfo.generated.hpp` (ignorado por git) con la versión y el commit, y `dist/VERSION` con `version`, `upstream`, `revision` (commit, con `-dirty` si el árbol tenía cambios), `date` y `platform`. Solo se recompila `LandmarksVersion.cpp`.
+- La API es `plexus::landmarks::version()`, `revision()` y `describe()` (`<LandmarksVersion.hpp>`). La fachada y el motor llevan la misma, y al cargar el motor la fachada rechaza uno con otro `describe()`: mezclar builds comparte `IEngine` solo en apariencia. El motor la expone con `plexusLandmarksEngineVersion`.
+- Plexus guarda `dist/VERSION` como `vendor/mediapipe/lib/<plataforma>/VERSION`. Para saber si lo vendorizado está al día: comparar su `revision` con `git rev-parse --short=9 HEAD` del fork.
+
 Todo parche sobre código de upstream lleva la marca `plexus-patch:` en un comentario. Para listarlos:
 
 ```
@@ -52,6 +63,7 @@ El consumidor enlaza solo `libplexus_landmarks.so`. Los motores y `mediapipe/` d
 | `backend/MediaPipeEngine.cpp` | `MediaPipeEngine`: único `IEngine` existente, sobre `CalculatorGraph` |
 | `EngineLoader.*` | `LoadedEngine`: carga un motor por dispositivo con dlopen/LoadLibrary |
 | `graphs/{hand,body}_{cpu,gpu}.pbtxt` | Grafos de ejemplo |
+| `LandmarksVersion.hpp`, `LandmarksVersion.cpp` | `version()`, `revision()` y `describe()`; los valores vienen de `VersionInfo.generated.hpp` (ver Versionado) |
 | `LandmarksSmoke.cpp`, `LandmarksBench.cpp` | Prueba de humo (usa la fachada) y benchmark (usa MediaPipe directo) |
 
 Variables de entorno: `PLEXUS_LANDMARKS_DEVICE`, `PLEXUS_LANDMARKS_LIBDIR`, `PLEXUS_LANDMARKS_RESOURCE_DIR` y, solo para pruebas, `PLEXUS_LANDMARKS_FAULT_AFTER_FRAMES`. Macros: `PLEXUS_LANDMARKS_API`, `PLEXUS_LANDMARKS_BUILDING_DLL`, `PLEXUS_LANDMARKS_ENGINE_EXPORT`. Símbolos de los motores: `plexusLandmarksCreateEngine`, `plexusLandmarksDestroyEngine`.
@@ -121,9 +133,11 @@ Aviso conocido en GPU: `Tensors are designed for single writes` (`tensor.cc`) sa
 3. Resolver conflictos y revisar cada fila de la tabla: si upstream ya incorpora el cambio, retirar el parche y moverlo a la lista de absorbidos.
 4. Leer `git diff vANTERIOR vX.Y.Z -- .bazelrc WORKSPACE MODULE.bazel .bazelversion`: es donde upstream mueve el build.
 5. Instalar el Bazel de `.bazelversion` en `~/.bazel/bin` si falta.
-6. `./build_plexus.sh all`, revisar el log (no solo el código de salida) y ejecutar `./test_landmarks.sh`.
-7. Probar en Windows y en runtime con el proyecto consumidor antes de mover `plexus` por fast-forward.
+6. Poner `mediapipe/plexus/VERSION` en `vX.Y.Z+plexus.1` (sin la `v`) y confirmarlo.
+7. `./build_plexus.sh all`, revisar el log (no solo el código de salida) y ejecutar `./test_landmarks.sh`.
+8. Probar en Windows y en runtime con el proyecto consumidor antes de mover `plexus` por fast-forward.
+9. Etiquetar el commit (`git tag v<versión>`) y vendorizar en Plexus (`docs/build-mediapipe.md`).
 
 ## Estado de verificación
 
-Base `v1.1.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. En macOS (arm64) compila y pasa los escenarios de CPU con frames sintéticos. En Windows (MSVC 14.44, release) compila y pasa los escenarios de CPU con frames sintéticos. Pendiente: probar con cámara en vivo y con una imagen real en Windows.
+Versión `1.1.1+plexus.1`. Compila y arranca en Linux, CPU y GPU, con selección y fallback probados. En macOS (arm64) compila y pasa los escenarios de CPU con frames sintéticos. En Windows (MSVC 14.44, release) compila y pasa los escenarios de CPU con frames sintéticos. Pendiente: probar con cámara en vivo y con una imagen real en Windows.
