@@ -11,6 +11,7 @@ La versión del fork es `<base de upstream>+plexus.<N>`, por ejemplo `1.1.1+plex
 - Cada versión vendorizada lleva el tag `v<versión>` (por ejemplo `v1.1.1+plexus.1`) sobre el commit exacto. `git describe --match 'v*+plexus.*'` dice dónde está el árbol respecto al último tag propio; los tags `vX.Y.Z` de upstream no sirven para eso (hay que traerlos con `git fetch upstream --tags`).
 - El build escribe `mediapipe/plexus/landmarks/VersionInfo.generated.hpp` (ignorado por git) con la versión y el commit, y `dist/VERSION` con `version`, `upstream`, `revision` (commit, con `-dirty` si el árbol tenía cambios), `date` y `platform`. Solo se recompila `LandmarksVersion.cpp`.
 - La API es `plexus::landmarks::version()`, `revision()` y `describe()` (`<LandmarksVersion.hpp>`). La fachada y el motor llevan la misma, y al cargar el motor la fachada rechaza uno con otro `describe()`: mezclar builds comparte `IEngine` solo en apariencia. El motor la expone con `plexusLandmarksEngineVersion`.
+- Cada cambio propio se anota en [`mediapipe/plexus/CHANGELOG.md`](mediapipe/plexus/CHANGELOG.md), en el mismo commit que sube `mediapipe/plexus/VERSION`.
 - Plexus guarda `dist/VERSION` como `vendor/mediapipe/lib/<plataforma>/VERSION`. Para saber si lo vendorizado está al día: comparar su `revision` con `git rev-parse --short=9 HEAD` del fork.
 
 Todo parche sobre código de upstream lleva la marca `plexus-patch:` en un comentario. Para listarlos:
@@ -133,7 +134,7 @@ Aviso conocido en GPU: `Tensors are designed for single writes` (`tensor.cc`) sa
 3. Resolver conflictos y revisar cada fila de la tabla: si upstream ya incorpora el cambio, retirar el parche y moverlo a la lista de absorbidos.
 4. Leer `git diff vANTERIOR vX.Y.Z -- .bazelrc WORKSPACE MODULE.bazel .bazelversion`: es donde upstream mueve el build.
 5. Instalar el Bazel de `.bazelversion` en `~/.bazel/bin` si falta.
-6. Poner `mediapipe/plexus/VERSION` en `vX.Y.Z+plexus.1` (sin la `v`) y confirmarlo.
+6. Poner `mediapipe/plexus/VERSION` en `X.Y.Z+plexus.1`, abrir su sección en `mediapipe/plexus/CHANGELOG.md` y confirmarlo.
 7. `./build_plexus.sh all`, revisar el log (no solo el código de salida) y ejecutar `./test_landmarks.sh`.
 8. Probar en Windows y en runtime con el proyecto consumidor antes de mover `plexus` por fast-forward.
 9. Etiquetar el commit (`git tag v<versión>`) y vendorizar en Plexus (`docs/build-mediapipe.md`).
